@@ -351,7 +351,10 @@ def show_dbdt_page():
             y=df['%Vol2 - UP'],
             mode='lines+markers',
             name='UP',
-            line=line_style,
+            line=dict(
+            color='black',  # Ligne noire
+            width=2        # Épaisseur de 1 pixel
+        ),
             marker=up_marker,
             customdata=df[['Number', '%Vol1 - UP', '%Vol2 - UP', '%Vol3 - UP', '%Vol1 - LP', '%Vol2 - LP', '%Vol3 - LP']].values,
             hovertemplate=(
@@ -367,7 +370,10 @@ def show_dbdt_page():
             y=df['%Vol2 - LP'],
             mode='lines+markers',
             name='LP',
-            line=line_style,
+            line=dict(
+            color='black',  # Ligne noire
+            width=2        # Épaisseur de 1 pixel
+        ),
             marker=lp_marker,
             customdata=df[['Number', '%Vol1 - LP', '%Vol2 - LP', '%Vol3 - LP']].values,
             hovertemplate=(
@@ -384,7 +390,7 @@ def show_dbdt_page():
                 y=[row['%Vol2 - UP'], row['%Vol2 - LP']],
                 mode='lines',
                 line=dict(
-                color='black',  # Ligne noire
+                color='blue',  # Ligne bleue
                 width=2        # Épaisseur de 1 pixel
             ),
                 showlegend=False,
