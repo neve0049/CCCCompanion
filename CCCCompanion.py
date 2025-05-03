@@ -383,7 +383,10 @@ def show_dbdt_page():
                 x=[row['%Vol3 - UP'], row['%Vol3 - LP']],
                 y=[row['%Vol2 - UP'], row['%Vol2 - LP']],
                 mode='lines',
-                line=line_style,
+                line=dict(
+                color='black',  # Ligne noire
+                width=2        # Épaisseur de 1 pixel
+            ),
                 showlegend=False,
                 hoverinfo='none'
             ))
@@ -402,7 +405,7 @@ def show_dbdt_page():
             xaxis=dict(
                 title=f'% {labels["vol3"]} (%Vol3)',
                 range=[0, 1],
-                dtick=0.05,
+                dtick=0.1,
                 tick0=0,
                 tickmode='linear',
                 tickvals=np.arange(0, 1.05, 0.05).round(2),
