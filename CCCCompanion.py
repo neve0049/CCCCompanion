@@ -371,9 +371,9 @@ def show_dbdt_page():
             marker=lp_marker,
             customdata=df[['Number', '%Vol1 - LP', '%Vol2 - LP', '%Vol3 - LP']].values,
             hovertemplate=(
-                f'Phase: LP<br>{labels["vol1"]}: %{{customdata[4]:.2f}}%<br>'
-                f'{labels["vol2"]}: %{{customdata[5]:.2f}}%<br>'
-                f'{labels["vol3"]}: %{{customdata[6]:.2f}}%<extra></extra>'
+                f'Phase: LP<br>{labels["vol1"]}: %{{customdata[1]:.2f}}%<br>'
+                f'{labels["vol2"]}: %{{customdata[2]:.2f}}%<br>'
+                f'{labels["vol3"]}: %{{customdata[3]:.2f}}%<extra></extra>'
             )
         ))
 
