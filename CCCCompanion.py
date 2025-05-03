@@ -458,7 +458,7 @@ def show_dbdt_page():
     
             # Section Données brutes avec taille contrôlée
             st.subheader("Données brutes")
-            data_container = st.container(height=400)  # Hauteur fixe de 400px
+            data_container = st.container(height=800)  # Hauteur fixe de 400px
             with data_container:
                 st.dataframe(
                     df,
