@@ -451,7 +451,7 @@ def show_dbdt_page():
         )
 
         # Dans la partie "Affichage en deux colonnes"
-        col1, col2 = st.columns([0.7, 0.3])
+        col1, col2 = st.columns([0.8, 0.2])
 
         # Dans la fonction show_dbdt_page(), remplacez la partie "Données brutes" par :
 
