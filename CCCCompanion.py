@@ -453,17 +453,24 @@ def show_dbdt_page():
         # Dans la partie "Affichage en deux colonnes"
         col1, col2 = st.columns([0.7, 0.3])
 
+        # Dans la fonction show_dbdt_page(), remplacez la partie "Données brutes" par :
+
         with col1:
             st.plotly_chart(fig, use_container_width=True)
     
-            # Section Données brutes avec taille contrôlée
+            # Section Données brutes avec utilisation optimale de l'espace
             st.subheader("Données brutes")
-            data_container = st.container(height=800)  # Hauteur fixe de 400px
-            with data_container:
+    
+            # Définir la hauteur en fonction du nombre de lignes (min 200px, max 600px)
+            table_height = min(200 + len(df) * 35, 600)
+    
+            # Container avec bordure et défilement si nécessaire
+            with st.container(height=table_height, border=True):
                 st.dataframe(
                     df,
                     use_container_width=True,
                     hide_index=True,
+                    height=table_height - 10,  # Compenser la bordure
                     column_config={
                         "Number": st.column_config.NumberColumn("Numéro", format="%d"),
                         "%Vol1 - UP": st.column_config.NumberColumn("UP Vol1", format="%.2f %%"),
