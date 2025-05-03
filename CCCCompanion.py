@@ -450,16 +450,30 @@ def show_dbdt_page():
             hovermode='closest'
         )
 
-        # Affichage en deux colonnes
-        col1, col2 = st.columns([0.7, 0.3])
-        
-        with col1:
+        # Dans la partie "Affichage en deux colonnes"
+            col1, col2 = st.columns([0.7, 0.3])
+
+            with col1:
             st.plotly_chart(fig, use_container_width=True)
-            
-            # Affichage des données brutes
+    
+            # Section Données brutes avec taille contrôlée
             st.subheader("Données brutes")
-            st.dataframe(df, use_container_width=True)
-        
+            data_container = st.container(height=400)  # Hauteur fixe de 400px
+            with data_container:
+            st.dataframe(
+            df,
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "Number": st.column_config.NumberColumn("Numéro", format="%d"),
+                "%Vol1 - UP": st.column_config.NumberColumn("UP Vol1", format="%.2f %%"),
+                "%Vol2 - UP": st.column_config.NumberColumn("UP Vol2", format="%.2f %%"),
+                "%Vol3 - UP": st.column_config.NumberColumn("UP Vol3", format="%.2f %%"),
+                "%Vol1 - LP": st.column_config.NumberColumn("LP Vol1", format="%.2f %%"),
+                "%Vol2 - LP": st.column_config.NumberColumn("LP Vol2", format="%.2f %%"),
+                "%Vol3 - LP": st.column_config.NumberColumn("LP Vol3", format="%.2f %%")
+            }
+        )
         with col2:
             # Sélection interactive
             st.subheader("Sélection de point")
