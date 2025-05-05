@@ -110,8 +110,8 @@ def show_kddb_page():
                 df = pd.read_excel(EXCEL_PATH, sheet_name=selected_sheet)
                 
                 # Colonnes requises et optionnelles
-                required_cols = ['Compound', 'SMILES', 'Number', 'System']
-                additional_cols = ['Log KD', 'Log P (Pubchem)', 'Log P (COSMO-RS)']
+                required_cols = ['Compound', 'Log KD', 'System', 'Number',]
+                additional_cols = ['Log P (Pubchem)', 'Log P (COSMO-RS)']
                 
                 # Vérification des colonnes disponibles
                 available_cols = [col for col in required_cols + additional_cols if col in df.columns]
