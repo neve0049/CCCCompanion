@@ -111,7 +111,7 @@ def show_kddb_page():
                 
                 # Colonnes requises et optionnelles
                 required_cols = ['Compound', 'SMILES', 'Number', 'System']
-                additional_cols = ['Log Pow', 'Log KD']
+                additional_cols = ['Log P (Pubchem)', 'Log P (COSMO-RS), 'Log KD']
                 
                 # Vérification des colonnes disponibles
                 available_cols = [col for col in required_cols + additional_cols if col in df.columns]
