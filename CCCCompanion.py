@@ -13,18 +13,12 @@ st.set_page_config(
     page_title="CCC Companion",
     page_icon="🧪",
     layout="wide",
-    initial_sidebar_state="collapsed"
+    initial_sidebar_state="expanded"
 )
 
 # =============================================
 # Fonctions utilitaires
 # =============================================
-
-def is_mobile():
-    """Détecte si l'utilisateur est sur un appareil mobile"""
-    user_agent = st.experimental_get_query_params().get("user_agent", [""])[0]
-    mobile_keywords = ['mobile', 'android', 'iphone', 'ipad', 'windows phone']
-    return any(keyword in user_agent.lower() for keyword in mobile_keywords)
 
 @st.cache_data
 def load_excel_sheets(file_path):
@@ -56,64 +50,42 @@ def create_phase_display(row, labels):
 # =============================================
 
 def show_home_page():
-    st.title("CCC Companion")
+    st.title("CCC ")
     st.markdown("""
-    Bienvenue dans l'application CCC Companion. Sélectionnez une base de données à explorer:
+    Bienvenue dans l'application CCC . Sélectionnez une base de données à explorer:
     """)
     
-    if is_mobile():
-        # Version mobile
+    col1, col2 = st.columns(2)
+    with col1:
         if st.button("KD Database Explorer", use_container_width=True, key="kddb_home"):
             st.session_state.current_page = "kddb"
             st.rerun()
+    with col2:
         if st.button("Ternary Phase Diagrams", use_container_width=True, key="dbdt_home"):
             st.session_state.current_page = "dbdt"
             st.rerun()
-    else:
-        # Version desktop
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("KD Database Explorer", use_container_width=True, key="kddb_home"):
-                st.session_state.current_page = "kddb"
-                st.rerun()
-        with col2:
-            if st.button("Ternary Phase Diagrams", use_container_width=True, key="dbdt_home"):
-                st.session_state.current_page = "dbdt"
-                st.rerun()
 
 def show_kddb_page():
-    """Page KD Database Explorer - Version adaptée mobile"""
+    """Page KD Database Explorer - Version avec sélection par ligne"""
     st.title("KD Database Explorer")
-    
-    if is_mobile():
-        st.markdown("ℹ️ Utilisez le mode paysage pour une meilleure expérience")
     
     # Chargement des noms de feuilles
     sheet_names = load_excel_sheets(EXCEL_PATH)
     if not sheet_names:
         return
         
-    # Zone de recherche adaptée mobile
-    if is_mobile():
+    # Zone de recherche
+    col1, col2 = st.columns([0.7, 0.3])
+    with col1:
         search_query = st.text_input(
-            "Recherche...",
+            "Entrez un nom de molécule ou système...",
             key="search_input",
-            placeholder="Molécule/système"
+            placeholder="Rechercher"
         )
-        if st.button("Rechercher", use_container_width=True, key="search_button"):
+    with col2:
+        st.write("")  # Pour l'alignement
+        if st.button("Rechercher", key="search_button"):
             st.session_state.search_triggered = True
-    else:
-        col1, col2 = st.columns([0.7, 0.3])
-        with col1:
-            search_query = st.text_input(
-                "Entrez un nom de molécule ou système...",
-                key="search_input",
-                placeholder="Rechercher"
-            )
-        with col2:
-            st.write("")
-            if st.button("Rechercher", key="search_button"):
-                st.session_state.search_triggered = True
 
     # Gestion de la recherche
     if 'search_triggered' not in st.session_state:
@@ -133,7 +105,7 @@ def show_kddb_page():
                 key="sheet_selection"
             )
             
-            # Chargement des données
+            # Chargement des données de la feuille sélectionnée
             try:
                 df = pd.read_excel(EXCEL_PATH, sheet_name=selected_sheet)
                 
@@ -141,18 +113,20 @@ def show_kddb_page():
                 required_cols = ['Compound', 'SMILES', 'Number', 'System']
                 additional_cols = ['Log P (Pubchem)', 'Log P (COSMO-RS)', 'Log KD']
                 
-                # Vérification des colonnes
+                # Vérification des colonnes disponibles
                 available_cols = [col for col in required_cols + additional_cols if col in df.columns]
                 
                 if len([col for col in required_cols if col in available_cols]) < len(required_cols):
-                    st.error("Colonnes requises manquantes.")
+                    st.error("Les colonnes requises ne sont pas toutes présentes dans la feuille.")
                 else:
-                    # Sélection interactive
+                    # Sélection interactive par ligne
                     st.subheader("Sélectionnez une entrée")
                     
+                    # Création d'un dataframe pour la sélection
                     selection_df = df[available_cols].copy()
                     selection_df.insert(0, 'Select', False)
                     
+                    # Configuration des colonnes pour st.data_editor
                     column_config = {
                         "Select": st.column_config.CheckboxColumn(
                             "Sélection",
@@ -163,6 +137,7 @@ def show_kddb_page():
                         "Number": st.column_config.NumberColumn(format="%d"),
                     }
                     
+                    # Affichage du tableau avec case à cocher
                     edited_df = st.data_editor(
                         selection_df,
                         column_config=column_config,
@@ -172,36 +147,40 @@ def show_kddb_page():
                         key="data_editor"
                     )
                     
+                    # Récupération de la ligne sélectionnée
                     selected_rows = edited_df[edited_df['Select']]
                     
                     if not selected_rows.empty:
+                        # Ne garder que la première sélection si plusieurs cases cochées
                         selected_row = selected_rows.iloc[0]
                         system_name = selected_row['System']
                         selected_number = selected_row['Number']
                         
+                        # Chargement des données du système correspondant
                         try:
+                            # Charger toutes les feuilles du fichier DBDT
                             all_sheets = pd.read_excel(DBDT_PATH, sheet_name=None)
                             
                             if system_name not in all_sheets:
-                                st.error(f"Système {system_name} non trouvé")
+                                st.error(f"Aucune donnée trouvée pour le système {system_name}")
                             else:
                                 df_system = all_sheets[system_name]
                                 df_filtered = df_system[df_system['Number'] == selected_number]
                                 
                                 if df_filtered.empty:
-                                    st.error(f"Numéro {selected_number} non trouvé")
+                                    st.error(f"Aucune donnée trouvée pour le numéro {selected_number} dans le système {system_name}")
                                 else:
-                                    # Création du graphique
+                                    # Création du graphique ternaire
                                     fig = go.Figure()
                                     
-                                    # Traces pour les phases
+                                    # Traces pour les phases UP et LP
                                     for phase, color in [('UP', 'red'), ('LP', 'blue')]:
                                         fig.add_trace(go.Scatter(
                                             x=df_system[f'%Vol3 - {phase}'],
                                             y=df_system[f'%Vol2 - {phase}'],
                                             mode='markers',
                                             name=f'Phase {phase}',
-                                            marker=dict(color=color, size=8 if is_mobile() else 10),
+                                            marker=dict(color=color, size=10, line=dict(width=1, color='DarkSlateGrey')),
                                             customdata=np.stack((
                                                 df_system['Number'],
                                                 df_system[f'%Vol1 - {phase}'],
@@ -210,9 +189,9 @@ def show_kddb_page():
                                             ), axis=-1),
                                             hovertemplate=(
                                                 "<b>Number</b>: %{customdata[0]}<br>"
-                                                "<b>Vol1</b>: %{customdata[1]:.2f}<br>"
-                                                "<b>Vol2</b>: %{customdata[2]:.2f}<br>"
-                                                "<b>Vol3</b>: %{customdata[3]:.2f}<extra></extra>"
+                                                "<b>%Vol1</b>: %{customdata[1]:.2f}<br>"
+                                                "<b>%Vol2</b>: %{customdata[2]:.2f}<br>"
+                                                "<b>%Vol3</b>: %{customdata[3]:.2f}<extra></extra>"
                                             )
                                         ))
                                     
@@ -234,7 +213,7 @@ def show_kddb_page():
                                         y=1 - x_vals,
                                         mode='lines',
                                         name='x + y = 1',
-                                        line=dict(color='green', width=1.5 if is_mobile() else 2),
+                                        line=dict(color='green', width=2),
                                         hoverinfo='none'
                                     ))
                                     
@@ -247,27 +226,30 @@ def show_kddb_page():
                                             name=f'Sélection {phase}',
                                             marker=dict(
                                                 color='black',
-                                                size=12 if is_mobile() else 16,
+                                                size=16,
                                                 symbol='circle-open',
-                                                line=dict(width=1.5 if is_mobile() else 2)
+                                                line=dict(width=2)
                                             ),
                                             hoverinfo='none'
                                         ))
                                     
-                                    # Mise en forme
+                                    # Mise en forme du graphique
                                     fig.update_layout(
                                         title=dict(
-                                            text=f"Diagramme de Phase - {system_name}",
+                                            text=f"Diagramme de Phase Ternaire - Système {system_name}",
                                             x=0.5,
-                                            font=dict(size=14 if is_mobile() else 16)
+                                            font=dict(size=16)
                                         ),
                                         xaxis=dict(
-                                            title='Vol3',
-                                            range=[0, 1]
+                                            title='%Vol3',
+                                            range=[0, 1],
+                                            constrain='domain'
                                         ),
                                         yaxis=dict(
-                                            title='Vol2',
-                                            range=[0, 1]
+                                            title='%Vol2',
+                                            range=[0, 1],
+                                            scaleanchor='x',
+                                            scaleratio=1
                                         ),
                                         showlegend=True,
                                         legend=dict(
@@ -277,71 +259,56 @@ def show_kddb_page():
                                             xanchor='right',
                                             x=1
                                         ),
-                                        margin=dict(
-                                            l=40 if is_mobile() else 60,
-                                            r=40 if is_mobile() else 60,
-                                            t=60 if is_mobile() else 80,
-                                            b=40 if is_mobile() else 60
-                                        ),
-                                        height=400 if is_mobile() else 600
+                                        margin=dict(l=60, r=60, t=80, b=60, pad=20),
+                                        height=600
                                     )
                                     
-                                    # Affichage adapté mobile
-                                    if is_mobile():
+                                    # Affichage en deux colonnes (graphique + compositions)
+                                    col1, col2 = st.columns([0.7, 0.3])
+                                    
+                                    with col1:
                                         st.plotly_chart(fig, use_container_width=True)
-                                        st.subheader("Compositions")
+                                    
+                                    with col2:
+                                        st.subheader("Compositions des phases")
                                         
                                         for phase, color in [('UP', 'red'), ('LP', 'blue')]:
-                                            with st.expander(f"Phase {phase}", expanded=False):
+                                            with st.expander(f"Phase {phase}", expanded=True):
                                                 st.markdown(f"""
-                                                **Vol1:** {df_filtered[f'%Vol1 - {phase}'].values[0]:.2f}  
-                                                **Vol2:** {df_filtered[f'%Vol2 - {phase}'].values[0]:.2f}  
-                                                **Vol3:** {df_filtered[f'%Vol3 - {phase}'].values[0]:.2f}
+                                                **%Vol1:** {df_filtered[f'%Vol1 - {phase}'].values[0]:.2f}  
+                                                **%Vol2:** {df_filtered[f'%Vol2 - {phase}'].values[0]:.2f}  
+                                                **%Vol3:** {df_filtered[f'%Vol3 - {phase}'].values[0]:.2f}
                                                 """)
-                                    else:
-                                        col1, col2 = st.columns([0.7, 0.3])
-                                        with col1:
-                                            st.plotly_chart(fig, use_container_width=True)
-                                        with col2:
-                                            st.subheader("Compositions des phases")
-                                            for phase, color in [('UP', 'red'), ('LP', 'blue')]:
-                                                with st.expander(f"Phase {phase}", expanded=True):
-                                                    st.markdown(f"""
-                                                    **Vol1:** {df_filtered[f'%Vol1 - {phase}'].values[0]:.2f}  
-                                                    **Vol2:** {df_filtered[f'%Vol2 - {phase}'].values[0]:.2f}  
-                                                    **Vol3:** {df_filtered[f'%Vol3 - {phase}'].values[0]:.2f}
-                                                    """)
+                        
                         except Exception as e:
-                            st.error(f"Erreur: {str(e)}")
+                            st.error(f"Erreur lors du chargement du système {system_name}: {str(e)}")
                     else:
-                        st.info("Sélectionnez une ligne pour voir les détails")
+                        st.info("Veuillez sélectionner une ligne dans le tableau pour afficher les détails")
             
             except Exception as e:
-                st.error(f"Erreur: {str(e)}")
+                st.error(f"Erreur lors du chargement des données: {str(e)}")
 
-    # Boutons
+    # Bouton pour effacer la recherche
     if st.session_state.search_triggered:
-        if st.button("Effacer la recherche", use_container_width=is_mobile()):
+        if st.button("Effacer la recherche"):
             st.session_state.search_triggered = False
             st.rerun()
     
-    if st.button("Retour à l'accueil", key="kddb_back", use_container_width=is_mobile()):
+    # Bouton de retour
+    if st.button("Retour à l'accueil", key="kddb_back"):
         st.session_state.current_page = "home"
         st.rerun()
 
 def show_dbdt_page():
-    """Page Ternary Phase Diagrams - Version adaptée mobile"""
+    """Page Ternary Phase Diagrams - Version complète"""
     st.title("Ternary Phase Diagrams")
-    
-    if is_mobile():
-        st.markdown("ℹ️ Utilisez le mode paysage pour une meilleure visualisation")
     
     # Chargement des noms de feuilles
     sheet_names = load_excel_sheets(DBDT_PATH)
     if not sheet_names:
         return
     
-    # Gestion des arguments
+    # Gestion des arguments passés
     initial_sheet = None
     selected_number = None
     if len(sys.argv) > 2:
@@ -366,12 +333,17 @@ def show_dbdt_page():
             'sheet': selected_sheet
         }
         
-        # Nettoyage
+        # Nettoyage et tri
         df = df.dropna(subset=['%Vol1 - UP', '%Vol2 - UP', '%Vol3 - UP', '%Vol1 - LP', '%Vol2 - LP', '%Vol3 - LP'])
         df = df.sort_values('%Vol3 - UP')
         
         # Création du graphique
         fig = go.Figure()
+
+        # Styles
+        line_style = dict(color='gray', width=1)
+        up_marker = dict(color='red', size=8, symbol='circle')
+        lp_marker = dict(color='blue', size=8, symbol='circle')
 
         # Courbe UP
         fig.add_trace(go.Scatter(
@@ -379,9 +351,12 @@ def show_dbdt_page():
             y=df['%Vol2 - UP'],
             mode='lines+markers',
             name='UP',
-            line=dict(color='black', width=1.5 if is_mobile() else 2),
-            marker=dict(color='red', size=6 if is_mobile() else 8),
-            customdata=df[['Number', '%Vol1 - UP', '%Vol2 - UP', '%Vol3 - UP']].values,
+            line=dict(
+            color='black',  # Ligne noire
+            width=2        # Épaisseur de 1 pixel
+        ),
+            marker=up_marker,
+            customdata=df[['Number', '%Vol1 - UP', '%Vol2 - UP', '%Vol3 - UP', '%Vol1 - LP', '%Vol2 - LP', '%Vol3 - LP']].values,
             hovertemplate=(
                 f'Phase: UP<br>{labels["vol1"]}: %{{customdata[1]:.2f}}<br>'
                 f'{labels["vol2"]}: %{{customdata[2]:.2f}}<br>'
@@ -395,8 +370,11 @@ def show_dbdt_page():
             y=df['%Vol2 - LP'],
             mode='lines+markers',
             name='LP',
-            line=dict(color='black', width=1.5 if is_mobile() else 2),
-            marker=dict(color='blue', size=6 if is_mobile() else 8),
+            line=dict(
+            color='black',  # Ligne noire
+            width=2        # Épaisseur de 1 pixel
+        ),
+            marker=lp_marker,
             customdata=df[['Number', '%Vol1 - LP', '%Vol2 - LP', '%Vol3 - LP']].values,
             hovertemplate=(
                 f'Phase: LP<br>{labels["vol1"]}: %{{customdata[1]:.2f}}<br>'
@@ -411,7 +389,10 @@ def show_dbdt_page():
                 x=[row['%Vol3 - UP'], row['%Vol3 - LP']],
                 y=[row['%Vol2 - UP'], row['%Vol2 - LP']],
                 mode='lines',
-                line=dict(color='blue', width=1.5 if is_mobile() else 2),
+                line=dict(
+                color='blue',  # Ligne bleue
+                width=2        # Épaisseur de 1 pixel
+            ),
                 showlegend=False,
                 hoverinfo='none'
             ))
@@ -425,62 +406,71 @@ def show_dbdt_page():
             hoverinfo='none'
         ))
 
-        # Configuration
+        # Configuration des axes avec grille améliorée
         fig.update_layout(
             xaxis=dict(
-                title=f'{labels["vol3"]} (Vol3)',
+                title=f'% {labels["vol3"]} (%Vol3)',
                 range=[0, 1],
                 dtick=0.1,
-                showgrid=True
+                tick0=0,
+                tickmode='linear',
+                tickvals=np.arange(0, 1.05, 0.05).round(2),
+                showgrid=True,
+                gridwidth=1.5,
+                gridcolor='#666666',
+                griddash='solid',
+                minor=dict(
+                    ticklen=4,
+                    dtick=0.01,
+                    gridcolor='LightGrey',
+                    gridwidth=0.5
+                )
             ),
             yaxis=dict(
-                title=f'{labels["vol2"]} (Vol2)',
+                title=f'% {labels["vol2"]} (%Vol2)',
                 range=[0, 1],
                 dtick=0.05,
-                showgrid=True
+                tick0=0,
+                tickmode='linear',
+                tickvals=np.arange(0, 1.05, 0.05).round(2),
+                showgrid=True,
+                gridwidth=1.5,
+                gridcolor='#666666',
+                griddash='solid',
+                minor=dict(
+                    ticklen=4,
+                    dtick=0.01,
+                    gridcolor='LightGrey',
+                    gridwidth=0.5
+                )
             ),
-            title=f"Diagramme de {labels['vol1']} / {labels['vol2']} / {labels['vol3']}",
-            height=500 if is_mobile() else 700,
-            hovermode='closest',
-            margin=dict(
-                l=40 if is_mobile() else 60,
-                r=40 if is_mobile() else 60,
-                t=80 if is_mobile() else 100,
-                b=40 if is_mobile() else 60
-            )
+            title=f"Ternary Phase Diagram of {labels['vol1']} / {labels['vol2']} / {labels['vol3']} - {labels['sheet']}",
+            width=1400,
+            height=700,
+            hovermode='closest'
         )
 
-        # Affichage adapté mobile
-        if is_mobile():
+        # Dans la partie "Affichage en deux colonnes"
+        col1, col2 = st.columns([0.8, 0.2])
+
+        # Dans la fonction show_dbdt_page(), remplacez la partie "Données brutes" par :
+
+        with col1:
             st.plotly_chart(fig, use_container_width=True)
-            
-            # Sélection
-            selected_number = st.selectbox(
-                "Choisir un numéro", 
-                df['Number'].unique(),
-                index=list(df['Number']).index(selected_number) if selected_number in df['Number'].values else 0
-            )
-            
-            selected_row = df[df['Number'] == selected_number].iloc[0]
-            phase_data = create_phase_display(selected_row, labels)
-            
-            # Compositions
-            st.subheader("Compositions")
-            for phase, color in [('UP', 'red'), ('LP', 'blue')]:
-                with st.expander(f"Phase {phase}", expanded=False):
-                    st.markdown(f"""
-                    **{labels['vol1']}:** {phase_data[phase]['vol1']:.2f}  
-                    **{labels['vol2']}:** {phase_data[phase]['vol2']:.2f}  
-                    **{labels['vol3']}:** {phase_data[phase]['vol3']:.2f}
-                    """)
-            
-            # Données brutes
-            st.subheader("Données")
-            with st.container(height=300, border=True):
+    
+            # Section Données brutes avec utilisation optimale de l'espace
+            st.subheader("Données brutes")
+    
+            # Définir la hauteur en fonction du nombre de lignes (min 200px, max 600px)
+            table_height = min(200 + len(df) * 35, 600)
+    
+            # Container avec bordure et défilement si nécessaire
+            with st.container(height=table_height, border=True):
                 st.dataframe(
                     df,
                     use_container_width=True,
                     hide_index=True,
+                    height=table_height - 10,  # Compenser la bordure
                     column_config={
                         "Number": st.column_config.NumberColumn("Numéro", format="%d"),
                         "%Vol1 - UP": st.column_config.NumberColumn("UP Vol1", format="%.2f"),
@@ -491,56 +481,34 @@ def show_dbdt_page():
                         "%Vol3 - LP": st.column_config.NumberColumn("LP Vol3", format="%.2f")
                     }
                 )
-        else:
-            # Version desktop
-            col1, col2 = st.columns([0.8, 0.2])
-            with col1:
-                st.plotly_chart(fig, use_container_width=True)
-                
-                # Données brutes
-                st.subheader("Données brutes")
-                with st.container(height=400, border=True):
-                    st.dataframe(
-                        df,
-                        use_container_width=True,
-                        hide_index=True,
-                        column_config={
-                            "Number": st.column_config.NumberColumn("Numéro", format="%d"),
-                            "%Vol1 - UP": st.column_config.NumberColumn("UP Vol1", format="%.2f"),
-                            "%Vol2 - UP": st.column_config.NumberColumn("UP Vol2", format="%.2f"),
-                            "%Vol3 - UP": st.column_config.NumberColumn("UP Vol3", format="%.2f"),
-                            "%Vol1 - LP": st.column_config.NumberColumn("LP Vol1", format="%.2f"),
-                            "%Vol2 - LP": st.column_config.NumberColumn("LP Vol2", format="%.2f"),
-                            "%Vol3 - LP": st.column_config.NumberColumn("LP Vol3", format="%.2f")
-                        }
-                    )
-            with col2:
-                # Sélection
-                st.subheader("Sélection")
-                selected_number = st.selectbox(
-                    "Choisir un numéro", 
-                    df['Number'].unique(),
-                    index=list(df['Number']).index(selected_number) if selected_number in df['Number'].values else 0
-                )
-                
-                selected_row = df[df['Number'] == selected_number].iloc[0]
-                phase_data = create_phase_display(selected_row, labels)
-                
-                # Compositions
-                st.subheader("Compositions")
-                for phase, color in [('UP', 'red'), ('LP', 'blue')]:
-                    with st.expander(f"Phase {phase}", expanded=True):
-                        st.markdown(f"""
-                        **{labels['vol1']}:** {phase_data[phase]['vol1']:.2f}  
-                        **{labels['vol2']}:** {phase_data[phase]['vol2']:.2f}  
-                        **{labels['vol3']}:** {phase_data[phase]['vol3']:.2f}
-                        """)
+        with col2:
+            # Sélection interactive
+            st.subheader("Sélection de point")
+            selected_number = st.selectbox(
+                "Choisir un numéro", 
+                df['Number'].unique(),
+                index=list(df['Number']).index(selected_number) if selected_number in df['Number'].values else 0
+            )
+            
+            selected_row = df[df['Number'] == selected_number].iloc[0]
+            phase_data = create_phase_display(selected_row, labels)
+            
+            # Affichage des compositions
+            st.subheader("Compositions des phases")
+            
+            for phase, color in [('UP', 'red'), ('LP', 'blue')]:
+                with st.expander(f"Phase {phase}", expanded=True):
+                    st.markdown(f"""
+                    **{labels['vol1']}:** {phase_data[phase]['vol1']:.2f}  
+                    **{labels['vol2']}:** {phase_data[phase]['vol2']:.2f}  
+                    **{labels['vol3']}:** {phase_data[phase]['vol3']:.2f}
+                    """)
     
     except Exception as e:
-        st.error(f"Erreur: {str(e)}")
+        st.error(f"Erreur lors du traitement des données: {str(e)}")
     
     # Bouton de retour
-    if st.button("Retour à l'accueil", key="dbdt_back", use_container_width=is_mobile()):
+    if st.button("Retour à l'accueil", key="dbdt_back"):
         st.session_state.current_page = "home"
         st.rerun()
 
@@ -553,31 +521,18 @@ def main():
     if 'current_page' not in st.session_state:
         st.session_state.current_page = "home"
     
-    # Navigation adaptée mobile
-    if is_mobile():
-        # Menu en haut pour mobile
-        menu = ["Accueil", "KD Database", "Ternary Diagrams"]
-        choice = st.selectbox("Menu", menu, label_visibility="collapsed")
-        
-        if choice == "Accueil":
+    # Navigation
+    with st.sidebar:
+        st.title("Navigation")
+        if st.button("Accueil"):
             st.session_state.current_page = "home"
-        elif choice == "KD Database":
+            st.rerun()
+        if st.button("KD Database Explorer"):
             st.session_state.current_page = "kddb"
-        elif choice == "Ternary Diagrams":
+            st.rerun()
+        if st.button("Ternary Diagrams"):
             st.session_state.current_page = "dbdt"
-    else:
-        # Sidebar pour desktop
-        with st.sidebar:
-            st.title("Navigation")
-            if st.button("Accueil"):
-                st.session_state.current_page = "home"
-                st.rerun()
-            if st.button("KD Database Explorer"):
-                st.session_state.current_page = "kddb"
-                st.rerun()
-            if st.button("Ternary Diagrams"):
-                st.session_state.current_page = "dbdt"
-                st.rerun()
+            st.rerun()
     
     # Router vers la page active
     if st.session_state.current_page == "home":
