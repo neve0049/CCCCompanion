@@ -214,7 +214,7 @@ def show_kddb_page():
                                         mode='lines',
                                         name='x + y = 1',
                                         line=dict(color='green', width=2),
-                                        hoverinfo='none'
+                                        info='none'
                                     ))
                                     
                                     # Points sélectionnés
@@ -230,7 +230,7 @@ def show_kddb_page():
                                                 symbol='circle-open',
                                                 line=dict(width=2)
                                             ),
-                                            hoverinfo='none'
+                                            info='none'
                                         ))
                                     
                                     # Mise en forme du graphique
@@ -473,12 +473,12 @@ def show_dbdt_page():
                     height=table_height - 10,  # Compenser la bordure
                     column_config={
                         "Number": st.column_config.NumberColumn("Numéro", format="%d"),
-                        "%Vol1 - UP": st.column_config.NumberColumn("UP Vol1", format="%.2f %%"),
-                        "%Vol2 - UP": st.column_config.NumberColumn("UP Vol2", format="%.2f %%"),
-                        "%Vol3 - UP": st.column_config.NumberColumn("UP Vol3", format="%.2f %%"),
-                        "%Vol1 - LP": st.column_config.NumberColumn("LP Vol1", format="%.2f %%"),
-                        "%Vol2 - LP": st.column_config.NumberColumn("LP Vol2", format="%.2f %%"),
-                        "%Vol3 - LP": st.column_config.NumberColumn("LP Vol3", format="%.2f %%")
+                        "%Vol1 - UP": st.column_config.NumberColumn("UP Vol1", format="%.2f %"),
+                        "%Vol2 - UP": st.column_config.NumberColumn("UP Vol2", format="%.2f %"),
+                        "%Vol3 - UP": st.column_config.NumberColumn("UP Vol3", format="%.2f %"),
+                        "%Vol1 - LP": st.column_config.NumberColumn("LP Vol1", format="%.2f %"),
+                        "%Vol2 - LP": st.column_config.NumberColumn("LP Vol2", format="%.2f %"),
+                        "%Vol3 - LP": st.column_config.NumberColumn("LP Vol3", format="%.2f %")
                     }
                 )
         with col2:
