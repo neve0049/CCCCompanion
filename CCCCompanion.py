@@ -214,7 +214,7 @@ def show_kddb_page():
                                         mode='lines',
                                         name='x + y = 1',
                                         line=dict(color='green', width=2),
-                                        info='none'
+                                        hoverinfo='none'
                                     ))
                                     
                                     # Points sélectionnés
@@ -230,7 +230,7 @@ def show_kddb_page():
                                                 symbol='circle-open',
                                                 line=dict(width=2)
                                             ),
-                                            info='none'
+                                            hoverinfo='none'
                                         ))
                                     
                                     # Mise en forme du graphique
