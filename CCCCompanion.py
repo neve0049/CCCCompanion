@@ -50,9 +50,9 @@ def create_phase_display(row, labels):
 # =============================================
 
 def show_home_page():
-    st.title("CCC Companion")
+    st.title("CCC ")
     st.markdown("""
-    Bienvenue dans l'application CCC Companion. Sélectionnez une base de données à explorer:
+    Bienvenue dans l'application CCC . Sélectionnez une base de données à explorer:
     """)
     
     col1, col2 = st.columns(2)
@@ -111,7 +111,7 @@ def show_kddb_page():
                 
                 # Colonnes requises et optionnelles
                 required_cols = ['Compound', 'SMILES', 'Number', 'System']
-                additional_cols = ['Log P (Pubchem)', 'Log P (COSMO-RS), 'Log KD']
+                additional_cols = ['Log P (Pubchem)', 'Log P (COSMO-RS)', 'Log KD']
                 
                 # Vérification des colonnes disponibles
                 available_cols = [col for col in required_cols + additional_cols if col in df.columns]
