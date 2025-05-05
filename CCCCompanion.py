@@ -134,7 +134,7 @@ def show_kddb_page():
                             default=False,
                             required=True
                         ),
-                        "Number": st.column_config.NumberColumn(format="d"),
+                        "Number": st.column_config.NumberColumn(format="%d"),
                     }
                     
                     # Affichage du tableau avec case à cocher
