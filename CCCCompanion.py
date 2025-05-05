@@ -189,9 +189,9 @@ def show_kddb_page():
                                             ), axis=-1),
                                             hovertemplate=(
                                                 "<b>Number</b>: %{customdata[0]}<br>"
-                                                "<b>%Vol1</b>: %{customdata[1]:.2f}%<br>"
-                                                "<b>%Vol2</b>: %{customdata[2]:.2f}%<br>"
-                                                "<b>%Vol3</b>: %{customdata[3]:.2f}%<extra></extra>"
+                                                "<b>%Vol1</b>: %{customdata[1]:.2f}<br>"
+                                                "<b>%Vol2</b>: %{customdata[2]:.2f}<br>"
+                                                "<b>%Vol3</b>: %{customdata[3]:.2f}<extra></extra>"
                                             )
                                         ))
                                     
@@ -275,9 +275,9 @@ def show_kddb_page():
                                         for phase, color in [('UP', 'red'), ('LP', 'blue')]:
                                             with st.expander(f"Phase {phase}", expanded=True):
                                                 st.markdown(f"""
-                                                **%Vol1:** {df_filtered[f'%Vol1 - {phase}'].values[0]:.2f}%  
-                                                **%Vol2:** {df_filtered[f'%Vol2 - {phase}'].values[0]:.2f}%  
-                                                **%Vol3:** {df_filtered[f'%Vol3 - {phase}'].values[0]:.2f}%
+                                                **%Vol1:** {df_filtered[f'%Vol1 - {phase}'].values[0]:.2f}  
+                                                **%Vol2:** {df_filtered[f'%Vol2 - {phase}'].values[0]:.2f}  
+                                                **%Vol3:** {df_filtered[f'%Vol3 - {phase}'].values[0]:.2f}
                                                 """)
                         
                         except Exception as e:
@@ -358,9 +358,9 @@ def show_dbdt_page():
             marker=up_marker,
             customdata=df[['Number', '%Vol1 - UP', '%Vol2 - UP', '%Vol3 - UP', '%Vol1 - LP', '%Vol2 - LP', '%Vol3 - LP']].values,
             hovertemplate=(
-                f'Phase: UP<br>{labels["vol1"]}: %{{customdata[1]:.2f}}%<br>'
-                f'{labels["vol2"]}: %{{customdata[2]:.2f}}%<br>'
-                f'{labels["vol3"]}: %{{customdata[3]:.2f}}%<extra></extra>'
+                f'Phase: UP<br>{labels["vol1"]}: %{{customdata[1]:.2f}}<br>'
+                f'{labels["vol2"]}: %{{customdata[2]:.2f}}<br>'
+                f'{labels["vol3"]}: %{{customdata[3]:.2f}}<extra></extra>'
             )
         ))
 
@@ -377,9 +377,9 @@ def show_dbdt_page():
             marker=lp_marker,
             customdata=df[['Number', '%Vol1 - LP', '%Vol2 - LP', '%Vol3 - LP']].values,
             hovertemplate=(
-                f'Phase: LP<br>{labels["vol1"]}: %{{customdata[1]:.2f}}%<br>'
-                f'{labels["vol2"]}: %{{customdata[2]:.2f}}%<br>'
-                f'{labels["vol3"]}: %{{customdata[3]:.2f}}%<extra></extra>'
+                f'Phase: LP<br>{labels["vol1"]}: %{{customdata[1]:.2f}}<br>'
+                f'{labels["vol2"]}: %{{customdata[2]:.2f}}<br>'
+                f'{labels["vol3"]}: %{{customdata[3]:.2f}}<extra></extra>'
             )
         ))
 
@@ -499,9 +499,9 @@ def show_dbdt_page():
             for phase, color in [('UP', 'red'), ('LP', 'blue')]:
                 with st.expander(f"Phase {phase}", expanded=True):
                     st.markdown(f"""
-                    **{labels['vol1']}:** {phase_data[phase]['vol1']:.2f}%  
-                    **{labels['vol2']}:** {phase_data[phase]['vol2']:.2f}%  
-                    **{labels['vol3']}:** {phase_data[phase]['vol3']:.2f}%
+                    **{labels['vol1']}:** {phase_data[phase]['vol1']:.2f}  
+                    **{labels['vol2']}:** {phase_data[phase]['vol2']:.2f}  
+                    **{labels['vol3']}:** {phase_data[phase]['vol3']:.2f}
                     """)
     
     except Exception as e:
