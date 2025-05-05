@@ -50,9 +50,9 @@ def create_phase_display(row, labels):
 # =============================================
 
 def show_home_page():
-    st.title("CCC ")
+    st.title("CCCCompanion ")
     st.markdown("""
-    Bienvenue dans l'application CCC . Sélectionnez une base de données à explorer:
+    Welcome to the CCCCompanion app. Please select a databse to explore:
     """)
     
     col1, col2 = st.columns(2)
@@ -78,13 +78,13 @@ def show_kddb_page():
     col1, col2 = st.columns([0.7, 0.3])
     with col1:
         search_query = st.text_input(
-            "Entrez un nom de molécule ou système...",
+            "Enter a compound name",
             key="search_input",
-            placeholder="Rechercher"
+            placeholder="Search"
         )
     with col2:
         st.write("")  # Pour l'alignement
-        if st.button("Rechercher", key="search_button"):
+        if st.button("Search", key="search_button"):
             st.session_state.search_triggered = True
 
     # Gestion de la recherche
@@ -111,7 +111,7 @@ def show_kddb_page():
                 
                 # Colonnes requises et optionnelles
                 required_cols = ['Compound', 'SMILES', 'Number', 'System']
-                additional_cols = ['Log P (Pubchem)', 'Log P (COSMO-RS)', 'Log KD']
+                additional_cols = ['Log KD', 'Log P (Pubchem)', 'Log P (COSMO-RS)']
                 
                 # Vérification des colonnes disponibles
                 available_cols = [col for col in required_cols + additional_cols if col in df.columns]
@@ -129,8 +129,8 @@ def show_kddb_page():
                     # Configuration des colonnes pour st.data_editor
                     column_config = {
                         "Select": st.column_config.CheckboxColumn(
-                            "Sélection",
-                            help="Sélectionnez une ligne",
+                            "Select",
+                            help="Select a line by checking a box",
                             default=False,
                             required=True
                         ),
@@ -459,7 +459,7 @@ def show_dbdt_page():
             st.plotly_chart(fig, use_container_width=True)
     
             # Section Données brutes avec utilisation optimale de l'espace
-            st.subheader("Données brutes")
+            st.subheader("Data of selected system")
     
             # Définir la hauteur en fonction du nombre de lignes (min 200px, max 600px)
             table_height = min(200 + len(df) * 35, 600)
@@ -483,9 +483,9 @@ def show_dbdt_page():
                 )
         with col2:
             # Sélection interactive
-            st.subheader("Sélection de point")
+            st.subheader("Select a system")
             selected_number = st.selectbox(
-                "Choisir un numéro", 
+                "Select a number", 
                 df['Number'].unique(),
                 index=list(df['Number']).index(selected_number) if selected_number in df['Number'].values else 0
             )
@@ -494,7 +494,7 @@ def show_dbdt_page():
             phase_data = create_phase_display(selected_row, labels)
             
             # Affichage des compositions
-            st.subheader("Compositions des phases")
+            st.subheader("Phase composition")
             
             for phase, color in [('UP', 'red'), ('LP', 'blue')]:
                 with st.expander(f"Phase {phase}", expanded=True):
