@@ -7,6 +7,7 @@ import sys
 # Configuration des chemins des fichiers
 EXCEL_PATH = "KDDB.xlsx"
 DBDT_PATH = "DBDT.xlsx"
+DBDQ_PATH = "DBDQ.xlsx"
 
 # Configuration de l'application
 st.set_page_config(
@@ -29,21 +30,54 @@ def load_excel_sheets(file_path):
         st.error(f"Erreur de chargement du fichier {file_path}: {str(e)}")
         return []
 
-def create_phase_display(row, labels):
+def create_phase_display(row, labels, is_quaternary=False):
     """Crée l'affichage des compositions des phases"""
-    return {
-        "UP": {
-            "vol1": row['%Vol1 - UP'],
-            "vol2": row['%Vol2 - UP'],
-            "vol3": row['%Vol3 - UP']
-        },
-        "LP": {
-            "vol1": row['%Vol1 - LP'],
-            "vol2": row['%Vol2 - LP'],
-            "vol3": row['%Vol3 - LP']
-        },
-        "labels": labels
-    }
+    if is_quaternary:
+        return {
+            "UP": {
+                "vol1": row['%Vol1 - UP'],
+                "vol2": row['%Vol2 - UP'],
+                "vol3": row['%Vol3 - UP'],
+                "vol4": row['%Vol4 - UP']
+            },
+            "LP": {
+                "vol1": row['%Vol1 - LP'],
+                "vol2": row['%Vol2 - LP'],
+                "vol3": row['%Vol3 - LP'],
+                "vol4": row['%Vol4 - LP']
+            },
+            "labels": labels
+        }
+    else:
+        return {
+            "UP": {
+                "vol1": row['%Vol1 - UP'],
+                "vol2": row['%Vol2 - UP'],
+                "vol3": row['%Vol3 - UP']
+            },
+            "LP": {
+                "vol1": row['%Vol1 - LP'],
+                "vol2": row['%Vol2 - LP'],
+                "vol3": row['%Vol3 - LP']
+            },
+            "labels": labels
+        }
+
+def quaternary_to_3d(v1, v2, v3, v4):
+    """Convertit des coordonnées quaternaires (v1+v2+v3+v4=100) en coordonnées 3D"""
+    # Normalisation des pourcentages (de 0-100 à 0-1)
+    total = v1 + v2 + v3 + v4
+    v1_norm = v1 / total
+    v2_norm = v2 / total
+    v3_norm = v3 / total
+    v4_norm = v4 / total
+    
+    # Configuration des axes
+    x = v4_norm  # %Vol4 sur l'axe X
+    y = v3_norm  # %Vol3 sur l'axe Y
+    z = v2_norm  # %Vol2 sur l'axe Z
+    
+    return x, y, z
 
 # =============================================
 # Pages de l'application
@@ -52,10 +86,10 @@ def create_phase_display(row, labels):
 def show_home_page():
     st.title("CCCCompanion ")
     st.markdown("""
-    Welcome to the CCCCompanion app. Please select a databse to explore:
+    Welcome to the CCCCompanion app. Please select a database to explore:
     """)
     
-    col1, col2 = st.columns(2)
+    col1, col2, col3 = st.columns(3)
     with col1:
         if st.button("KD Database Explorer", use_container_width=True, key="kddb_home"):
             st.session_state.current_page = "kddb"
@@ -63,6 +97,10 @@ def show_home_page():
     with col2:
         if st.button("Ternary Phase Diagrams", use_container_width=True, key="dbdt_home"):
             st.session_state.current_page = "dbdt"
+            st.rerun()
+    with col3:
+        if st.button("Quaternary Phase Diagrams", use_container_width=True, key="dbdq_home"):
+            st.session_state.current_page = "dbdq"
             st.rerun()
 
 def show_kddb_page():
@@ -110,7 +148,7 @@ def show_kddb_page():
                 df = pd.read_excel(EXCEL_PATH, sheet_name=selected_sheet)
                 
                 # Colonnes requises et optionnelles
-                required_cols = ['Compound', 'Log KD', 'System', 'Number',]
+                required_cols = ['Compound', 'Log KD', 'System', 'Number']
                 additional_cols = ['Log P (Pubchem)', 'Log P (COSMO-RS)']
                 
                 # Vérification des colonnes disponibles
@@ -156,10 +194,14 @@ def show_kddb_page():
                         system_name = selected_row['System']
                         selected_number = selected_row['Number']
                         
+                        # Déterminer si c'est un système ternaire ou quaternaire
+                        is_quaternary = st.checkbox("Afficher en diagramme quaternaire", key="quaternary_check")
+                        
                         # Chargement des données du système correspondant
                         try:
-                            # Charger toutes les feuilles du fichier DBDT
-                            all_sheets = pd.read_excel(DBDT_PATH, sheet_name=None)
+                            # Charger toutes les feuilles du fichier approprié
+                            target_file = DBDQ_PATH if is_quaternary else DBDT_PATH
+                            all_sheets = pd.read_excel(target_file, sheet_name=None)
                             
                             if system_name not in all_sheets:
                                 st.error(f"Aucune donnée trouvée pour le système {system_name}")
@@ -170,115 +212,10 @@ def show_kddb_page():
                                 if df_filtered.empty:
                                     st.error(f"Aucune donnée trouvée pour le numéro {selected_number} dans le système {system_name}")
                                 else:
-                                    # Création du graphique ternaire
-                                    fig = go.Figure()
-                                    
-                                    # Traces pour les phases UP et LP
-                                    for phase, color in [('UP', 'red'), ('LP', 'blue')]:
-                                        fig.add_trace(go.Scatter(
-                                            x=df_system[f'%Vol3 - {phase}'],
-                                            y=df_system[f'%Vol2 - {phase}'],
-                                            mode='markers',
-                                            name=f'Phase {phase}',
-                                            marker=dict(color=color, size=10, line=dict(width=1, color='DarkSlateGrey')),
-                                            customdata=np.stack((
-                                                df_system['Number'],
-                                                df_system[f'%Vol1 - {phase}'],
-                                                df_system[f'%Vol2 - {phase}'],
-                                                df_system[f'%Vol3 - {phase}']
-                                            ), axis=-1),
-                                            hovertemplate=(
-                                                "<b>Number</b>: %{customdata[0]}<br>"
-                                                "<b>%Vol1</b>: %{customdata[1]:.2f}<br>"
-                                                "<b>%Vol2</b>: %{customdata[2]:.2f}<br>"
-                                                "<b>%Vol3</b>: %{customdata[3]:.2f}<extra></extra>"
-                                            )
-                                        ))
-                                    
-                                    # Lignes de connexion
-                                    for _, row in df_system.iterrows():
-                                        fig.add_trace(go.Scatter(
-                                            x=[row['%Vol3 - UP'], row['%Vol3 - LP']],
-                                            y=[row['%Vol2 - UP'], row['%Vol2 - LP']],
-                                            mode='lines',
-                                            line=dict(color='gray', width=1, dash='dot'),
-                                            showlegend=False,
-                                            hoverinfo='none'
-                                        ))
-                                    
-                                    # Ligne x + y = 1
-                                    x_vals = np.linspace(0, 1, 100)
-                                    fig.add_trace(go.Scatter(
-                                        x=x_vals,
-                                        y=1 - x_vals,
-                                        mode='lines',
-                                        name='x + y = 1',
-                                        line=dict(color='green', width=2),
-                                        hoverinfo='none'
-                                    ))
-                                    
-                                    # Points sélectionnés
-                                    for phase in ['UP', 'LP']:
-                                        fig.add_trace(go.Scatter(
-                                            x=[df_filtered[f'%Vol3 - {phase}'].values[0]],
-                                            y=[df_filtered[f'%Vol2 - {phase}'].values[0]],
-                                            mode='markers',
-                                            name=f'Sélection {phase}',
-                                            marker=dict(
-                                                color='black',
-                                                size=16,
-                                                symbol='circle-open',
-                                                line=dict(width=2)
-                                            ),
-                                            hoverinfo='none'
-                                        ))
-                                    
-                                    # Mise en forme du graphique
-                                    fig.update_layout(
-                                        title=dict(
-                                            text=f"Diagramme de Phase Ternaire - Système {system_name}",
-                                            x=0.5,
-                                            font=dict(size=16)
-                                        ),
-                                        xaxis=dict(
-                                            title='%Vol3',
-                                            range=[0, 1],
-                                            constrain='domain'
-                                        ),
-                                        yaxis=dict(
-                                            title='%Vol2',
-                                            range=[0, 1],
-                                            scaleanchor='x',
-                                            scaleratio=1
-                                        ),
-                                        showlegend=True,
-                                        legend=dict(
-                                            orientation='h',
-                                            yanchor='bottom',
-                                            y=1.02,
-                                            xanchor='right',
-                                            x=1
-                                        ),
-                                        margin=dict(l=60, r=60, t=80, b=60, pad=20),
-                                        height=600
-                                    )
-                                    
-                                    # Affichage en deux colonnes (graphique + compositions)
-                                    col1, col2 = st.columns([0.7, 0.3])
-                                    
-                                    with col1:
-                                        st.plotly_chart(fig, use_container_width=True)
-                                    
-                                    with col2:
-                                        st.subheader("Compositions des phases")
-                                        
-                                        for phase, color in [('UP', 'red'), ('LP', 'blue')]:
-                                            with st.expander(f"Phase {phase}", expanded=True):
-                                                st.markdown(f"""
-                                                **%Vol1:** {df_filtered[f'%Vol1 - {phase}'].values[0]:.2f}  
-                                                **%Vol2:** {df_filtered[f'%Vol2 - {phase}'].values[0]:.2f}  
-                                                **%Vol3:** {df_filtered[f'%Vol3 - {phase}'].values[0]:.2f}
-                                                """)
+                                    if is_quaternary:
+                                        show_quaternary_diagram(df_system, df_filtered, system_name, selected_number)
+                                    else:
+                                        show_ternary_diagram(df_system, df_filtered, system_name, selected_number)
                         
                         except Exception as e:
                             st.error(f"Erreur lors du chargement du système {system_name}: {str(e)}")
@@ -298,6 +235,260 @@ def show_kddb_page():
     if st.button("Retour à l'accueil", key="kddb_back"):
         st.session_state.current_page = "home"
         st.rerun()
+
+def show_ternary_diagram(df_system, df_filtered, system_name, selected_number):
+    """Affiche un diagramme ternaire"""
+    lib_row = pd.read_excel(DBDT_PATH, sheet_name=system_name, header=None).iloc[1]
+    labels = {
+        'vol1': lib_row[0],
+        'vol2': lib_row[1],
+        'vol3': lib_row[2],
+        'sheet': system_name
+    }
+    
+    # Création du graphique ternaire
+    fig = go.Figure()
+    
+    # Traces pour les phases UP et LP
+    for phase, color in [('UP', 'red'), ('LP', 'blue')]:
+        fig.add_trace(go.Scatter(
+            x=df_system[f'%Vol3 - {phase}'],
+            y=df_system[f'%Vol2 - {phase}'],
+            mode='markers',
+            name=f'Phase {phase}',
+            marker=dict(color=color, size=10, line=dict(width=1, color='DarkSlateGrey')),
+            customdata=np.stack((
+                df_system['Number'],
+                df_system[f'%Vol1 - {phase}'],
+                df_system[f'%Vol2 - {phase}'],
+                df_system[f'%Vol3 - {phase}']
+            ), axis=-1),
+            hovertemplate=(
+                "<b>Number</b>: %{customdata[0]}<br>"
+                "<b>%Vol1</b>: %{customdata[1]:.2f}<br>"
+                "<b>%Vol2</b>: %{customdata[2]:.2f}<br>"
+                "<b>%Vol3</b>: %{customdata[3]:.2f}<extra></extra>"
+            )
+        ))
+    
+    # Lignes de connexion
+    for _, row in df_system.iterrows():
+        fig.add_trace(go.Scatter(
+            x=[row['%Vol3 - UP'], row['%Vol3 - LP']],
+            y=[row['%Vol2 - UP'], row['%Vol2 - LP']],
+            mode='lines',
+            line=dict(color='gray', width=1, dash='dot'),
+            showlegend=False,
+            hoverinfo='none'
+        ))
+    
+    # Ligne x + y = 1
+    x_vals = np.linspace(0, 1, 100)
+    fig.add_trace(go.Scatter(
+        x=x_vals,
+        y=1 - x_vals,
+        mode='lines',
+        name='x + y = 1',
+        line=dict(color='green', width=2),
+        hoverinfo='none'
+    ))
+    
+    # Points sélectionnés
+    for phase in ['UP', 'LP']:
+        fig.add_trace(go.Scatter(
+            x=[df_filtered[f'%Vol3 - {phase}'].values[0]],
+            y=[df_filtered[f'%Vol2 - {phase}'].values[0]],
+            mode='markers',
+            name=f'Sélection {phase}',
+            marker=dict(
+                color='black',
+                size=16,
+                symbol='circle-open',
+                line=dict(width=2)
+            ),
+            hoverinfo='none'
+        ))
+    
+    # Mise en forme du graphique
+    fig.update_layout(
+        title=dict(
+            text=f"Diagramme de Phase Ternaire - Système {system_name}",
+            x=0.5,
+            font=dict(size=16)
+        ),
+        xaxis=dict(
+            title='%Vol3',
+            range=[0, 1],
+            constrain='domain'
+        ),
+        yaxis=dict(
+            title='%Vol2',
+            range=[0, 1],
+            scaleanchor='x',
+            scaleratio=1
+        ),
+        showlegend=True,
+        legend=dict(
+            orientation='h',
+            yanchor='bottom',
+            y=1.02,
+            xanchor='right',
+            x=1
+        ),
+        margin=dict(l=60, r=60, t=80, b=60, pad=20),
+        height=600
+    )
+    
+    # Affichage en deux colonnes (graphique + compositions)
+    col1, col2 = st.columns([0.7, 0.3])
+    
+    with col1:
+        st.plotly_chart(fig, use_container_width=True)
+    
+    with col2:
+        st.subheader("Compositions des phases")
+        
+        phase_data = create_phase_display(df_filtered.iloc[0], labels)
+        
+        for phase, color in [('UP', 'red'), ('LP', 'blue')]:
+            with st.expander(f"Phase {phase}", expanded=True):
+                st.markdown(f"""
+                **{labels['vol1']}:** {phase_data[phase]['vol1']:.2f}  
+                **{labels['vol2']}:** {phase_data[phase]['vol2']:.2f}  
+                **{labels['vol3']}:** {phase_data[phase]['vol3']:.2f}
+                """)
+
+def show_quaternary_diagram(df_system, df_filtered, system_name, selected_number):
+    """Affiche un diagramme quaternaire"""
+    lib_row = pd.read_excel(DBDQ_PATH, sheet_name=system_name, header=None).iloc[1]
+    labels = {
+        'vol1': lib_row[0],
+        'vol2': lib_row[1],
+        'vol3': lib_row[2],
+        'vol4': lib_row[3],
+        'sheet': system_name
+    }
+    
+    # Conversion des coordonnées
+    def convert_row(row, phase):
+        v1 = row[f'%Vol1 - {phase}']
+        v2 = row[f'%Vol2 - {phase}']
+        v3 = row[f'%Vol3 - {phase}']
+        v4 = row[f'%Vol4 - {phase}']
+        return quaternary_to_3d(v1, v2, v3, v4)
+    
+    # Appliquer la conversion
+    df_system[['x_up', 'y_up', 'z_up']] = df_system.apply(lambda x: convert_row(x, 'UP'), axis=1, result_type='expand')
+    df_system[['x_lp', 'y_lp', 'z_lp']] = df_system.apply(lambda x: convert_row(x, 'LP'), axis=1, result_type='expand')
+    df_filtered[['x_up', 'y_up', 'z_up']] = df_filtered.apply(lambda x: convert_row(x, 'UP'), axis=1, result_type='expand')
+    df_filtered[['x_lp', 'y_lp', 'z_lp']] = df_filtered.apply(lambda x: convert_row(x, 'LP'), axis=1, result_type='expand')
+    
+    # Création de la figure 3D
+    fig = go.Figure()
+    
+    # Ajout des points UP (rouge)
+    fig.add_trace(go.Scatter3d(
+        x=df_system['x_up'],
+        y=df_system['y_up'],
+        z=df_system['z_up'],
+        mode='markers',
+        name='UP',
+        marker=dict(color='red', size=5),
+        customdata=df_system[['Number', '%Vol1 - UP', '%Vol2 - UP', '%Vol3 - UP', '%Vol4 - UP']].values,
+        hovertemplate=(
+            f"<b>Phase UP</b><br>"
+            f"{labels['vol1']}: %{{customdata[1]:.2f}}%<br>"
+            f"{labels['vol2']}: %{{customdata[2]:.2f}}%<br>"
+            f"{labels['vol3']}: %{{customdata[3]:.2f}}%<br>"
+            f"{labels['vol4']}: %{{customdata[4]:.2f}}%<extra></extra>"
+        )
+    ))
+    
+    # Ajout des points LP (bleu)
+    fig.add_trace(go.Scatter3d(
+        x=df_system['x_lp'],
+        y=df_system['y_lp'],
+        z=df_system['z_lp'],
+        mode='markers',
+        name='LP',
+        marker=dict(color='blue', size=5),
+        customdata=df_system[['Number', '%Vol1 - LP', '%Vol2 - LP', '%Vol3 - LP', '%Vol4 - LP']].values,
+        hovertemplate=(
+            f"<b>Phase LP</b><br>"
+            f"{labels['vol1']}: %{{customdata[1]:.2f}}%<br>"
+            f"{labels['vol2']}: %{{customdata[2]:.2f}}%<br>"
+            f"{labels['vol3']}: %{{customdata[3]:.2f}}%<br>"
+            f"{labels['vol4']}: %{{customdata[4]:.2f}}%<extra></extra>"
+        )
+    ))
+    
+    # Ajout des lignes de connexion
+    for _, row in df_system.iterrows():
+        fig.add_trace(go.Scatter3d(
+            x=[row['x_up'], row['x_lp']],
+            y=[row['y_up'], row['y_lp']],
+            z=[row['z_up'], row['z_lp']],
+            mode='lines',
+            line=dict(color='gray', width=1),
+            showlegend=False,
+            hoverinfo='none'
+        ))
+    
+    # Points sélectionnés
+    for phase, color in [('UP', 'red'), ('LP', 'blue')]:
+        fig.add_trace(go.Scatter3d(
+            x=[df_filtered[f'x_{phase.lower()}'].values[0]],
+            y=[df_filtered[f'y_{phase.lower()}'].values[0]],
+            z=[df_filtered[f'z_{phase.lower()}'].values[0]],
+            mode='markers',
+            name=f'Sélection {phase}',
+            marker=dict(
+                color='black',
+                size=10,
+                symbol='circle-open',
+                line=dict(width=2)
+            ),
+            hoverinfo='none'
+        ))
+    
+    # Configuration du layout avec les nouveaux axes
+    fig.update_layout(
+        scene=dict(
+            xaxis=dict(title=f"% {labels['vol4']} (X)"),
+            yaxis=dict(title=f"% {labels['vol3']} (Y)"),
+            zaxis=dict(title=f"% {labels['vol2']} (Z)"),
+            aspectmode='cube',
+            camera=dict(
+                up=dict(x=0, y=0, z=1),
+                center=dict(x=0, y=0, z=0),
+                eye=dict(x=1.25, y=1.25, z=1.25)
+            )
+        ),
+        title=f"Quaternary Phase Diagram: {labels['vol1']} / {labels['vol2']} / {labels['vol3']} / {labels['vol4']}",
+        width=1200,
+        height=800,
+        hovermode='closest'
+    )
+    
+    # Affichage en deux colonnes (graphique + compositions)
+    col1, col2 = st.columns([0.7, 0.3])
+    
+    with col1:
+        st.plotly_chart(fig, use_container_width=True)
+    
+    with col2:
+        st.subheader("Compositions des phases")
+        
+        phase_data = create_phase_display(df_filtered.iloc[0], labels, is_quaternary=True)
+        
+        for phase, color in [('UP', 'red'), ('LP', 'blue')]:
+            with st.expander(f"Phase {phase}", expanded=True):
+                st.markdown(f"""
+                **{labels['vol1']}:** {phase_data[phase]['vol1']:.2f}%  
+                **{labels['vol2']}:** {phase_data[phase]['vol2']:.2f}%  
+                **{labels['vol3']}:** {phase_data[phase]['vol3']:.2f}%  
+                **{labels['vol4']}:** {phase_data[phase]['vol4']:.2f}%
+                """)
 
 def show_dbdt_page():
     """Page Ternary Phase Diagrams - Version complète"""
@@ -512,6 +703,205 @@ def show_dbdt_page():
         st.session_state.current_page = "home"
         st.rerun()
 
+def show_dbdq_page():
+    """Page Quaternary Phase Diagrams"""
+    st.title("Quaternary Phase Diagrams")
+    
+    # Chargement des noms de feuilles
+    sheet_names = load_excel_sheets(DBDQ_PATH)
+    if not sheet_names:
+        return
+    
+    # Gestion des arguments passés
+    initial_sheet = None
+    selected_number = None
+    if len(sys.argv) > 2:
+        initial_sheet = sys.argv[1]
+        selected_number = int(sys.argv[2])
+    
+    # Sélection de la feuille
+    selected_sheet = st.selectbox(
+        "Sélectionnez un système",
+        sheet_names,
+        index=sheet_names.index(initial_sheet) if initial_sheet in sheet_names else 0
+    )
+    
+    # Chargement des données
+    try:
+        df = pd.read_excel(DBDQ_PATH, sheet_name=selected_sheet)
+        lib_row = pd.read_excel(DBDQ_PATH, sheet_name=selected_sheet, header=None).iloc[1]
+        labels = {
+            'vol1': lib_row[0],
+            'vol2': lib_row[1],
+            'vol3': lib_row[2],
+            'vol4': lib_row[3],
+            'sheet': selected_sheet
+        }
+        
+        # Nettoyage des données
+        required_cols = ['%Vol1 - UP', '%Vol2 - UP', '%Vol3 - UP', '%Vol4 - UP',
+                        '%Vol1 - LP', '%Vol2 - LP', '%Vol3 - LP', '%Vol4 - LP']
+        df = df.dropna(subset=required_cols)
+        
+        # Conversion des coordonnées
+        def convert_row(row, phase):
+            v1 = row[f'%Vol1 - {phase}']
+            v2 = row[f'%Vol2 - {phase}']
+            v3 = row[f'%Vol3 - {phase}']
+            v4 = row[f'%Vol4 - {phase}']
+            return quaternary_to_3d(v1, v2, v3, v4)
+        
+        # Appliquer la conversion
+        df[['x_up', 'y_up', 'z_up']] = df.apply(lambda x: convert_row(x, 'UP'), axis=1, result_type='expand')
+        df[['x_lp', 'y_lp', 'z_lp']] = df.apply(lambda x: convert_row(x, 'LP'), axis=1, result_type='expand')
+        
+        # Création de la figure 3D
+        fig = go.Figure()
+        
+        # Ajout des points UP (rouge)
+        fig.add_trace(go.Scatter3d(
+            x=df['x_up'],
+            y=df['y_up'],
+            z=df['z_up'],
+            mode='markers',
+            name='UP',
+            marker=dict(color='red', size=5),
+            customdata=df[['Number', '%Vol1 - UP', '%Vol2 - UP', '%Vol3 - UP', '%Vol4 - UP']].values,
+            hovertemplate=(
+                f"<b>Phase UP</b><br>"
+                f"{labels['vol1']}: %{{customdata[1]:.2f}}%<br>"
+                f"{labels['vol2']}: %{{customdata[2]:.2f}}%<br>"
+                f"{labels['vol3']}: %{{customdata[3]:.2f}}%<br>"
+                f"{labels['vol4']}: %{{customdata[4]:.2f}}%<extra></extra>"
+            )
+        ))
+        
+        # Ajout des points LP (bleu)
+        fig.add_trace(go.Scatter3d(
+            x=df['x_lp'],
+            y=df['y_lp'],
+            z=df['z_lp'],
+            mode='markers',
+            name='LP',
+            marker=dict(color='blue', size=5),
+            customdata=df[['Number', '%Vol1 - LP', '%Vol2 - LP', '%Vol3 - LP', '%Vol4 - LP']].values,
+            hovertemplate=(
+                f"<b>Phase LP</b><br>"
+                f"{labels['vol1']}: %{{customdata[1]:.2f}}%<br>"
+                f"{labels['vol2']}: %{{customdata[2]:.2f}}%<br>"
+                f"{labels['vol3']}: %{{customdata[3]:.2f}}%<br>"
+                f"{labels['vol4']}: %{{customdata[4]:.2f}}%<extra></extra>"
+            )
+        ))
+        
+        # Ajout des lignes de connexion
+        for _, row in df.iterrows():
+            fig.add_trace(go.Scatter3d(
+                x=[row['x_up'], row['x_lp']],
+                y=[row['y_up'], row['y_lp']],
+                z=[row['z_up'], row['z_lp']],
+                mode='lines',
+                line=dict(color='gray', width=1),
+                showlegend=False,
+                hoverinfo='none'
+            ))
+        
+        # Configuration du layout avec les nouveaux axes
+        fig.update_layout(
+            scene=dict(
+                xaxis=dict(title=f"% {labels['vol4']} (X)"),
+                yaxis=dict(title=f"% {labels['vol3']} (Y)"),
+                zaxis=dict(title=f"% {labels['vol2']} (Z)"),
+                aspectmode='cube',
+                camera=dict(
+                    up=dict(x=0, y=0, z=1),
+                    center=dict(x=0, y=0, z=0),
+                    eye=dict(x=1.25, y=1.25, z=1.25)
+                )
+            ),
+            title=f"Quaternary Phase Diagram: {labels['vol1']} / {labels['vol2']} / {labels['vol3']} / {labels['vol4']}",
+            width=1200,
+            height=800,
+            hovermode='closest',
+            margin=dict(l=60, r=60, t=80, b=60)
+        )
+
+        # Affichage en deux colonnes
+        col1, col2 = st.columns([0.7, 0.3])
+
+        with col1:
+            st.plotly_chart(fig, use_container_width=True)
+
+            # Affichage des données brutes
+            st.subheader("Raw Data")
+            with st.expander("View complete dataset", expanded=False):
+                st.dataframe(
+                    df,
+                    use_container_width=True,
+                    hide_index=True,
+                    height=400,
+                    column_config={
+                        "Number": st.column_config.NumberColumn("Numéro", format="%d"),
+                        "%Vol1 - UP": st.column_config.NumberColumn("UP Vol1", format="%.2f"),
+                        "%Vol2 - UP": st.column_config.NumberColumn("UP Vol2", format="%.2f"),
+                        "%Vol3 - UP": st.column_config.NumberColumn("UP Vol3", format="%.2f"),
+                        "%Vol4 - UP": st.column_config.NumberColumn("UP Vol4", format="%.2f"),
+                        "%Vol1 - LP": st.column_config.NumberColumn("LP Vol1", format="%.2f"),
+                        "%Vol2 - LP": st.column_config.NumberColumn("LP Vol2", format="%.2f"),
+                        "%Vol3 - LP": st.column_config.NumberColumn("LP Vol3", format="%.2f"),
+                        "%Vol4 - LP": st.column_config.NumberColumn("LP Vol4", format="%.2f")
+                    }
+                )
+
+        with col2:
+            # Sélection interactive
+            st.subheader("Select a point")
+            selected_number = st.selectbox(
+                "Select by number", 
+                df['Number'].unique(),
+                index=list(df['Number']).index(selected_number) if selected_number in df['Number'].values else 0
+            )
+            
+            selected_row = df[df['Number'] == selected_number].iloc[0]
+            phase_data = create_phase_display(selected_row, labels, is_quaternary=True)
+            
+            # Affichage des compositions
+            st.subheader("Phase Compositions")
+            
+            for phase, color in [('UP', 'red'), ('LP', 'blue')]:
+                with st.expander(f"Phase {phase}", expanded=True):
+                    st.markdown(f"""
+                    **{labels['vol1']}:** {phase_data[phase]['vol1']:.2f}%  
+                    **{labels['vol2']}:** {phase_data[phase]['vol2']:.2f}%  
+                    **{labels['vol3']}:** {phase_data[phase]['vol3']:.2f}%  
+                    **{labels['vol4']}:** {phase_data[phase]['vol4']:.2f}%
+                    """)
+
+            # Bouton pour explorer dans KD Database
+            if st.button("Find in KD Database"):
+                # Vérifier si le système existe dans KDDB
+                try:
+                    kddb_sheets = load_excel_sheets(EXCEL_PATH)
+                    system_name = selected_sheet
+                    
+                    if system_name in kddb_sheets:
+                        st.session_state.current_page = "kddb"
+                        st.session_state.search_query = system_name
+                        st.session_state.search_triggered = True
+                        st.rerun()
+                    else:
+                        st.warning(f"No matching system found in KD Database for {system_name}")
+                except Exception as e:
+                    st.error(f"Error accessing KD Database: {str(e)}")
+
+    except Exception as e:
+        st.error(f"Error processing data: {str(e)}")
+    
+    # Bouton de retour
+    if st.button("Back to Home", key="dbdq_back"):
+        st.session_state.current_page = "home"
+        st.rerun()
+
 # =============================================
 # Application principale
 # =============================================
@@ -520,11 +910,15 @@ def main():
     # Initialisation de l'état
     if 'current_page' not in st.session_state:
         st.session_state.current_page = "home"
+    if 'search_triggered' not in st.session_state:
+        st.session_state.search_triggered = False
+    if 'search_query' not in st.session_state:
+        st.session_state.search_query = ""
     
     # Navigation
     with st.sidebar:
         st.title("Navigation")
-        if st.button("Accueil"):
+        if st.button("Home"):
             st.session_state.current_page = "home"
             st.rerun()
         if st.button("KD Database Explorer"):
@@ -532,6 +926,9 @@ def main():
             st.rerun()
         if st.button("Ternary Diagrams"):
             st.session_state.current_page = "dbdt"
+            st.rerun()
+        if st.button("Quaternary Diagrams"):
+            st.session_state.current_page = "dbdq"
             st.rerun()
     
     # Router vers la page active
@@ -541,6 +938,8 @@ def main():
         show_kddb_page()
     elif st.session_state.current_page == "dbdt":
         show_dbdt_page()
+    elif st.session_state.current_page == "dbdq":
+        show_dbdq_page()
 
 if __name__ == "__main__":
     main()
