@@ -104,7 +104,7 @@ def show_home_page():
             st.rerun()
 
 def show_kddb_page():
-    """Page KD Database Explorer - Version avec sélection par ligne"""
+    """Page KD Database Explorer - Version corrigée"""
     st.title("KD Database Explorer")
     
     # Chargement des noms de feuilles
@@ -112,127 +112,140 @@ def show_kddb_page():
     if not sheet_names:
         return
         
-    # Zone de recherche
-    col1, col2 = st.columns([0.7, 0.3])
-    with col1:
-        search_query = st.text_input(
-            "Enter a compound name",
-            key="search_input",
-            placeholder="Search"
-        )
-    with col2:
-        st.write("")  # Pour l'alignement
-        if st.button("Search", key="search_button"):
-            st.session_state.search_triggered = True
+    # Zone de recherche améliorée
+    search_query = st.text_input(
+        "Enter a compound or system name",
+        value=st.session_state.get("search_query", ""),
+        key="search_input",
+        placeholder="Search by compound or system"
+    )
+    
+    # Bouton de recherche avec état
+    if st.button("Search", key="search_button") or search_query:
+        st.session_state.search_triggered = True
+        st.session_state.search_query = search_query
 
-    # Gestion de la recherche
-    if 'search_triggered' not in st.session_state:
-        st.session_state.search_triggered = False
-
-    if st.session_state.search_triggered or search_query:
-        search_value = search_query.strip().lower()
+    # Si recherche déclenchée
+    if st.session_state.get("search_triggered", False):
+        search_value = st.session_state.search_query.strip().lower()
         matching_sheets = [sheet for sheet in sheet_names if search_value in sheet.lower()]
         
         if not matching_sheets:
-            st.warning("Aucune correspondance trouvée.")
+            st.warning("No matching sheets found.")
         else:
-            # Affichage des résultats
-            selected_sheet = st.radio(
-                "Feuilles correspondantes:",
+            # Sélection de la feuille avec valeur par défaut
+            selected_sheet = st.selectbox(
+                "Select a sheet:",
                 matching_sheets,
                 key="sheet_selection"
             )
             
-            # Chargement des données de la feuille sélectionnée
             try:
+                # Chargement des données avec gestion d'erreur améliorée
                 df = pd.read_excel(EXCEL_PATH, sheet_name=selected_sheet)
                 
-                # Colonnes requises et optionnelles
-                required_cols = ['Compound', 'Log KD', 'System', 'Number']
-                additional_cols = ['Log P (Pubchem)', 'Log P (COSMO-RS)']
+                # Colonnes requises avec alternatives possibles
+                required_cols = {
+                    'compound': ['Compound', 'Composé', 'Molecule'],
+                    'system': ['System', 'Système', 'Phase System'],
+                    'number': ['Number', 'Numéro', 'ID']
+                }
                 
-                # Vérification des colonnes disponibles
-                available_cols = [col for col in required_cols + additional_cols if col in df.columns]
+                # Trouver les noms de colonnes réels
+                actual_cols = {}
+                for col_type, alternatives in required_cols.items():
+                    for alt in alternatives:
+                        if alt in df.columns:
+                            actual_cols[col_type] = alt
+                            break
+                    if col_type not in actual_cols:
+                        st.error(f"Required column not found (tried: {', '.join(alternatives)})")
+                        return
                 
-                if len([col for col in required_cols if col in available_cols]) < len(required_cols):
-                    st.error("Les colonnes requises ne sont pas toutes présentes dans la feuille.")
-                else:
-                    # Sélection interactive par ligne
-                    st.subheader("Sélectionnez une entrée")
-                    
-                    # Création d'un dataframe pour la sélection
-                    selection_df = df[available_cols].copy()
-                    selection_df.insert(0, 'Select', False)
-                    
-                    # Configuration des colonnes pour st.data_editor
-                    column_config = {
+                # Colonnes supplémentaires optionnelles
+                optional_cols = ['Log KD', 'Log Pow', 'Log P (Pubchem)', 'Log P (COSMO-RS)']
+                display_cols = [actual_cols['compound'], actual_cols['number'], actual_cols['system']] + \
+                             [col for col in optional_cols if col in df.columns]
+                
+                # Affichage du tableau de sélection
+                st.subheader("Select an entry")
+                selection_df = df[display_cols].copy()
+                selection_df.insert(0, 'Select', False)
+                
+                # Éditeur de données avec sélection
+                edited_df = st.data_editor(
+                    selection_df,
+                    column_config={
                         "Select": st.column_config.CheckboxColumn(
                             "Select",
-                            help="Select a line by checking a box",
                             default=False,
-                            required=True
+                            disabled=[col for col in display_cols]
                         ),
-                        "Number": st.column_config.NumberColumn(format="%d"),
-                    }
+                        actual_cols['number']: st.column_config.NumberColumn(format="%d"),
+                    },
+                    use_container_width=True,
+                    hide_index=True,
+                    key="data_editor"
+                )
+                
+                # Récupération de la sélection
+                selected_rows = edited_df[edited_df['Select']]
+                
+                if not selected_rows.empty:
+                    selected_row = df.iloc[selected_rows.index[0]]
+                    system_name = selected_row[actual_cols['system']]
+                    selected_number = selected_row[actual_cols['number']]
                     
-                    # Affichage du tableau avec case à cocher
-                    edited_df = st.data_editor(
-                        selection_df,
-                        column_config=column_config,
-                        use_container_width=True,
-                        hide_index=True,
-                        disabled=[col for col in available_cols],
-                        key="data_editor"
+                    # Vérification du type de système
+                    is_quaternary = st.checkbox(
+                        "Show as quaternary diagram", 
+                        key="quaternary_check",
+                        help="Check if this is a 4-component system"
                     )
                     
-                    # Récupération de la ligne sélectionnée
-                    selected_rows = edited_df[edited_df['Select']]
-                    
-                    if not selected_rows.empty:
-                        # Ne garder que la première sélection si plusieurs cases cochées
-                        selected_row = selected_rows.iloc[0]
-                        system_name = selected_row['System']
-                        selected_number = selected_row['Number']
+                    # Chargement des données du diagramme
+                    target_file = DBDQ_PATH if is_quaternary else DBDT_PATH
+                    try:
+                        all_sheets = pd.read_excel(target_file, sheet_name=None)
                         
-                        # Déterminer si c'est un système ternaire ou quaternaire
-                        is_quaternary = st.checkbox("Afficher en diagramme quaternaire", key="quaternary_check")
+                        # Nettoyage du nom du système pour la correspondance
+                        clean_system_name = str(system_name).strip()
                         
-                        # Chargement des données du système correspondant
-                        try:
-                            # Charger toutes les feuilles du fichier approprié
-                            target_file = DBDQ_PATH if is_quaternary else DBDT_PATH
-                            all_sheets = pd.read_excel(target_file, sheet_name=None)
+                        if clean_system_name not in all_sheets:
+                            st.error(f"No diagram data found for system: {clean_system_name}")
+                            st.info(f"Available systems: {', '.join(all_sheets.keys())}")
+                        else:
+                            df_system = all_sheets[clean_system_name]
                             
-                            if system_name not in all_sheets:
-                                st.error(f"Aucune donnée trouvée pour le système {system_name}")
+                            # Conversion cohérente du numéro (en cas de types différents)
+                            df_system['Number'] = pd.to_numeric(df_system['Number'], errors='coerce')
+                            selected_number = pd.to_numeric(selected_number, errors='coerce')
+                            
+                            df_filtered = df_system[df_system['Number'] == selected_number]
+                            
+                            if df_filtered.empty:
+                                st.error(f"No data found for number {selected_number} in system {clean_system_name}")
+                                st.info(f"Available numbers: {', '.join(map(str, df_system['Number'].unique()))}")
                             else:
-                                df_system = all_sheets[system_name]
-                                df_filtered = df_system[df_system['Number'] == selected_number]
-                                
-                                if df_filtered.empty:
-                                    st.error(f"Aucune donnée trouvée pour le numéro {selected_number} dans le système {system_name}")
+                                if is_quaternary:
+                                    show_quaternary_diagram(df_system, df_filtered, clean_system_name, selected_number)
                                 else:
-                                    if is_quaternary:
-                                        show_quaternary_diagram(df_system, df_filtered, system_name, selected_number)
-                                    else:
-                                        show_ternary_diagram(df_system, df_filtered, system_name, selected_number)
-                        
-                        except Exception as e:
-                            st.error(f"Erreur lors du chargement du système {system_name}: {str(e)}")
-                    else:
-                        st.info("Veuillez sélectionner une ligne dans le tableau pour afficher les détails")
-            
+                                    show_ternary_diagram(df_system, df_filtered, clean_system_name, selected_number)
+                    
+                    except Exception as e:
+                        st.error(f"Error loading diagram data: {str(e)}")
+                
             except Exception as e:
-                st.error(f"Erreur lors du chargement des données: {str(e)}")
-
-    # Bouton pour effacer la recherche
-    if st.session_state.search_triggered:
-        if st.button("Effacer la recherche"):
+                st.error(f"Error processing data: {str(e)}")
+                
+        # Bouton pour effacer la recherche
+        if st.button("Clear search"):
             st.session_state.search_triggered = False
+            st.session_state.search_query = ""
             st.rerun()
     
     # Bouton de retour
-    if st.button("Retour à l'accueil", key="kddb_back"):
+    if st.button("Back to Home", key="kddb_back"):
         st.session_state.current_page = "home"
         st.rerun()
 
