@@ -148,7 +148,7 @@ def show_kddb_page():
                 df = pd.read_excel(EXCEL_PATH, sheet_name=selected_sheet)
                 
                 # Colonnes requises et optionnelles
-                required_cols = ['Compound', 'Log KD', 'System', 'Number']
+                required_cols = ['Compound', 'Log KD', 'System', 'Composition']
                 additional_cols = ['Log P (Pubchem)', 'Log P (COSMO-RS)']
                 
                 # Vérification des colonnes disponibles
@@ -172,7 +172,7 @@ def show_kddb_page():
                             default=False,
                             required=True
                         ),
-                        "Number": st.column_config.NumberColumn(format="%d"),
+                        "Composition": st.column_config.TextColumn("Composition"),
                     }
                     
                     # Affichage du tableau avec case à cocher
@@ -192,7 +192,7 @@ def show_kddb_page():
                         # Ne garder que la première sélection si plusieurs cases cochées
                         selected_row = selected_rows.iloc[0]
                         system_name = selected_row['System']
-                        selected_number = selected_row['Number']
+                        selected_composition = selected_row['Composition']
                         
                         # Déterminer si c'est un système ternaire ou quaternaire
                         is_quaternary = st.checkbox("Afficher en diagramme quaternaire", key="quaternary_check")
@@ -207,15 +207,15 @@ def show_kddb_page():
                                 st.error(f"Aucune donnée trouvée pour le système {system_name}")
                             else:
                                 df_system = all_sheets[system_name]
-                                df_filtered = df_system[df_system['Number'] == selected_number]
+                                df_filtered = df_system[df_system['Composition'] == selected_composition]
                                 
                                 if df_filtered.empty:
-                                    st.error(f"Aucune donnée trouvée pour le numéro {selected_number} dans le système {system_name}")
+                                    st.error(f"Aucune donnée trouvée pour la composition {selected_composition} dans le système {system_name}")
                                 else:
                                     if is_quaternary:
-                                        show_quaternary_diagram(df_system, df_filtered, system_name, selected_number)
+                                        show_quaternary_diagram(df_system, df_filtered, system_name, selected_composition)
                                     else:
-                                        show_ternary_diagram(df_system, df_filtered, system_name, selected_number)
+                                        show_ternary_diagram(df_system, df_filtered, system_name, selected_composition)
                         
                         except Exception as e:
                             st.error(f"Erreur lors du chargement du système {system_name}: {str(e)}")
@@ -236,7 +236,7 @@ def show_kddb_page():
         st.session_state.current_page = "home"
         st.rerun()
 
-def show_ternary_diagram(df_system, df_filtered, system_name, selected_number):
+def show_ternary_diagram(df_system, df_filtered, system_name, selected_composition):
     """Affiche un diagramme ternaire"""
     lib_row = pd.read_excel(DBDT_PATH, sheet_name=system_name, header=None).iloc[1]
     labels = {
@@ -258,13 +258,13 @@ def show_ternary_diagram(df_system, df_filtered, system_name, selected_number):
             name=f'Phase {phase}',
             marker=dict(color=color, size=10, line=dict(width=1, color='DarkSlateGrey')),
             customdata=np.stack((
-                df_system['Number'],
+                df_system['Composition'],
                 df_system[f'%Vol1 - {phase}'],
                 df_system[f'%Vol2 - {phase}'],
                 df_system[f'%Vol3 - {phase}']
             ), axis=-1),
             hovertemplate=(
-                "<b>Number</b>: %{customdata[0]}<br>"
+                "<b>Composition</b>: %{customdata[0]}<br>"
                 "<b>%Vol1</b>: %{customdata[1]:.2f}<br>"
                 "<b>%Vol2</b>: %{customdata[2]:.2f}<br>"
                 "<b>%Vol3</b>: %{customdata[3]:.2f}<extra></extra>"
@@ -358,7 +358,7 @@ def show_ternary_diagram(df_system, df_filtered, system_name, selected_number):
                 **{labels['vol3']}:** {phase_data[phase]['vol3']:.2f}
                 """)
 
-def show_quaternary_diagram(df_system, df_filtered, system_name, selected_number):
+def show_quaternary_diagram(df_system, df_filtered, system_name, selected_composition):
     """Affiche un diagramme quaternaire"""
     lib_row = pd.read_excel(DBDQ_PATH, sheet_name=system_name, header=None).iloc[1]
     labels = {
@@ -394,9 +394,10 @@ def show_quaternary_diagram(df_system, df_filtered, system_name, selected_number
         mode='markers',
         name='UP',
         marker=dict(color='red', size=5),
-        customdata=df_system[['Number', '%Vol1 - UP', '%Vol2 - UP', '%Vol3 - UP', '%Vol4 - UP']].values,
+        customdata=df_system[['Composition', '%Vol1 - UP', '%Vol2 - UP', '%Vol3 - UP', '%Vol4 - UP']].values,
         hovertemplate=(
             f"<b>Phase UP</b><br>"
+            f"<b>Composition</b>: %{{customdata[0]}}<br>"
             f"{labels['vol1']}: %{{customdata[1]:.2f}}%<br>"
             f"{labels['vol2']}: %{{customdata[2]:.2f}}%<br>"
             f"{labels['vol3']}: %{{customdata[3]:.2f}}%<br>"
@@ -412,9 +413,10 @@ def show_quaternary_diagram(df_system, df_filtered, system_name, selected_number
         mode='markers',
         name='LP',
         marker=dict(color='blue', size=5),
-        customdata=df_system[['Number', '%Vol1 - LP', '%Vol2 - LP', '%Vol3 - LP', '%Vol4 - LP']].values,
+        customdata=df_system[['Composition', '%Vol1 - LP', '%Vol2 - LP', '%Vol3 - LP', '%Vol4 - LP']].values,
         hovertemplate=(
             f"<b>Phase LP</b><br>"
+            f"<b>Composition</b>: %{{customdata[0]}}<br>"
             f"{labels['vol1']}: %{{customdata[1]:.2f}}%<br>"
             f"{labels['vol2']}: %{{customdata[2]:.2f}}%<br>"
             f"{labels['vol3']}: %{{customdata[3]:.2f}}%<br>"
@@ -501,10 +503,10 @@ def show_dbdt_page():
     
     # Gestion des arguments passés
     initial_sheet = None
-    selected_number = None
+    selected_composition = None
     if len(sys.argv) > 2:
         initial_sheet = sys.argv[1]
-        selected_number = int(sys.argv[2])
+        selected_composition = sys.argv[2]
     
     # Sélection de la feuille
     selected_sheet = st.selectbox(
@@ -547,8 +549,9 @@ def show_dbdt_page():
             width=2        # Épaisseur de 1 pixel
         ),
             marker=up_marker,
-            customdata=df[['Number', '%Vol1 - UP', '%Vol2 - UP', '%Vol3 - UP', '%Vol1 - LP', '%Vol2 - LP', '%Vol3 - LP']].values,
+            customdata=df[['Composition', '%Vol1 - UP', '%Vol2 - UP', '%Vol3 - UP', '%Vol1 - LP', '%Vol2 - LP', '%Vol3 - LP']].values,
             hovertemplate=(
+                f'<b>Composition</b>: %{{customdata[0]}}<br>'
                 f'Phase: UP<br>{labels["vol1"]}: %{{customdata[1]:.2f}}<br>'
                 f'{labels["vol2"]}: %{{customdata[2]:.2f}}<br>'
                 f'{labels["vol3"]}: %{{customdata[3]:.2f}}<extra></extra>'
@@ -566,8 +569,9 @@ def show_dbdt_page():
             width=2        # Épaisseur de 1 pixel
         ),
             marker=lp_marker,
-            customdata=df[['Number', '%Vol1 - LP', '%Vol2 - LP', '%Vol3 - LP']].values,
+            customdata=df[['Composition', '%Vol1 - LP', '%Vol2 - LP', '%Vol3 - LP']].values,
             hovertemplate=(
+                f'<b>Composition</b>: %{{customdata[0]}}<br>'
                 f'Phase: LP<br>{labels["vol1"]}: %{{customdata[1]:.2f}}<br>'
                 f'{labels["vol2"]}: %{{customdata[2]:.2f}}<br>'
                 f'{labels["vol3"]}: %{{customdata[3]:.2f}}<extra></extra>'
@@ -663,7 +667,7 @@ def show_dbdt_page():
                     hide_index=True,
                     height=table_height - 10,  # Compenser la bordure
                     column_config={
-                        "Number": st.column_config.NumberColumn("Numéro", format="%d"),
+                        "Composition": st.column_config.TextColumn("Composition"),
                         "%Vol1 - UP": st.column_config.NumberColumn("UP Vol1", format="%.2f"),
                         "%Vol2 - UP": st.column_config.NumberColumn("UP Vol2", format="%.2f"),
                         "%Vol3 - UP": st.column_config.NumberColumn("UP Vol3", format="%.2f"),
@@ -675,13 +679,13 @@ def show_dbdt_page():
         with col2:
             # Sélection interactive
             st.subheader("Select a system")
-            selected_number = st.selectbox(
-                "Select a number", 
-                df['Number'].unique(),
-                index=list(df['Number']).index(selected_number) if selected_number in df['Number'].values else 0
+            selected_composition = st.selectbox(
+                "Select a composition", 
+                df['Composition'].unique(),
+                index=list(df['Composition']).index(selected_composition) if selected_composition in df['Composition'].values else 0
             )
             
-            selected_row = df[df['Number'] == selected_number].iloc[0]
+            selected_row = df[df['Composition'] == selected_composition].iloc[0]
             phase_data = create_phase_display(selected_row, labels)
             
             # Affichage des compositions
@@ -714,10 +718,10 @@ def show_dbdq_page():
     
     # Gestion des arguments passés
     initial_sheet = None
-    selected_number = None
+    selected_composition = None
     if len(sys.argv) > 2:
         initial_sheet = sys.argv[1]
-        selected_number = int(sys.argv[2])
+        selected_composition = sys.argv[2]
     
     # Sélection de la feuille
     selected_sheet = st.selectbox(
@@ -766,9 +770,10 @@ def show_dbdq_page():
             mode='markers',
             name='UP',
             marker=dict(color='red', size=5),
-            customdata=df[['Number', '%Vol1 - UP', '%Vol2 - UP', '%Vol3 - UP', '%Vol4 - UP']].values,
+            customdata=df[['Composition', '%Vol1 - UP', '%Vol2 - UP', '%Vol3 - UP', '%Vol4 - UP']].values,
             hovertemplate=(
                 f"<b>Phase UP</b><br>"
+                f"<b>Composition</b>: %{{customdata[0]}}<br>"
                 f"{labels['vol1']}: %{{customdata[1]:.2f}}%<br>"
                 f"{labels['vol2']}: %{{customdata[2]:.2f}}%<br>"
                 f"{labels['vol3']}: %{{customdata[3]:.2f}}%<br>"
@@ -784,9 +789,10 @@ def show_dbdq_page():
             mode='markers',
             name='LP',
             marker=dict(color='blue', size=5),
-            customdata=df[['Number', '%Vol1 - LP', '%Vol2 - LP', '%Vol3 - LP', '%Vol4 - LP']].values,
+            customdata=df[['Composition', '%Vol1 - LP', '%Vol2 - LP', '%Vol3 - LP', '%Vol4 - LP']].values,
             hovertemplate=(
                 f"<b>Phase LP</b><br>"
+                f"<b>Composition</b>: %{{customdata[0]}}<br>"
                 f"{labels['vol1']}: %{{customdata[1]:.2f}}%<br>"
                 f"{labels['vol2']}: %{{customdata[2]:.2f}}%<br>"
                 f"{labels['vol3']}: %{{customdata[3]:.2f}}%<br>"
@@ -803,7 +809,7 @@ def show_dbdq_page():
                 mode='lines',
                 line=dict(color='gray', width=1),
                 showlegend=False,
-                hoverinfo='none'
+                                hoverinfo='none'
             ))
         
         # Configuration du layout avec les nouveaux axes
@@ -841,7 +847,7 @@ def show_dbdq_page():
                     hide_index=True,
                     height=400,
                     column_config={
-                        "Number": st.column_config.NumberColumn("Numéro", format="%d"),
+                        "Composition": st.column_config.TextColumn("Composition"),
                         "%Vol1 - UP": st.column_config.NumberColumn("UP Vol1", format="%.2f"),
                         "%Vol2 - UP": st.column_config.NumberColumn("UP Vol2", format="%.2f"),
                         "%Vol3 - UP": st.column_config.NumberColumn("UP Vol3", format="%.2f"),
@@ -856,13 +862,13 @@ def show_dbdq_page():
         with col2:
             # Sélection interactive
             st.subheader("Select a point")
-            selected_number = st.selectbox(
-                "Select by number", 
-                df['Number'].unique(),
-                index=list(df['Number']).index(selected_number) if selected_number in df['Number'].values else 0
+            selected_composition = st.selectbox(
+                "Select by composition", 
+                df['Composition'].unique(),
+                index=list(df['Composition']).index(selected_composition) if selected_composition in df['Composition'].values else 0
             )
             
-            selected_row = df[df['Number'] == selected_number].iloc[0]
+            selected_row = df[df['Composition'] == selected_composition].iloc[0]
             phase_data = create_phase_display(selected_row, labels, is_quaternary=True)
             
             # Affichage des compositions
