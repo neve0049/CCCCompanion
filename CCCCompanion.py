@@ -238,6 +238,7 @@ def show_kddb_page():
 
 def show_ternary_diagram(df_system, df_filtered, system_name, selected_composition):
     """Affiche un diagramme ternaire"""
+    # Récupérer les labels des solvants depuis la première ligne
     lib_row = pd.read_excel(DBDT_PATH, sheet_name=system_name, header=None).iloc[1]
     labels = {
         'vol1': lib_row[0],
@@ -245,6 +246,15 @@ def show_ternary_diagram(df_system, df_filtered, system_name, selected_compositi
         'vol3': lib_row[2],
         'sheet': system_name
     }
+    
+    # Vérifier que les colonnes nécessaires existent
+    required_cols = [f'%Vol1 - UP', f'%Vol2 - UP', f'%Vol3 - UP',
+                    f'%Vol1 - LP', f'%Vol2 - LP', f'%Vol3 - LP']
+    
+    for col in required_cols:
+        if col not in df_system.columns:
+            st.error(f"Colonne manquante: {col}")
+            return
     
     # Création du graphique ternaire
     fig = go.Figure()
@@ -258,7 +268,7 @@ def show_ternary_diagram(df_system, df_filtered, system_name, selected_compositi
             name=f'Phase {phase}',
             marker=dict(color=color, size=10, line=dict(width=1, color='DarkSlateGrey')),
             customdata=np.stack((
-                df_system['Composition'],
+                df_system['Composition'].astype(str),
                 df_system[f'%Vol1 - {phase}'],
                 df_system[f'%Vol2 - {phase}'],
                 df_system[f'%Vol3 - {phase}']
@@ -492,218 +502,139 @@ def show_quaternary_diagram(df_system, df_filtered, system_name, selected_compos
                 **{labels['vol4']}:** {phase_data[phase]['vol4']:.2f}%
                 """)
 
-def show_dbdt_page():
-    """Page Ternary Phase Diagrams - Version complète"""
-    st.title("Ternary Phase Diagrams")
+def show_kddb_page():
+    """Page KD Database Explorer - Version avec sélection par ligne"""
+    st.title("KD Database Explorer")
     
     # Chargement des noms de feuilles
-    sheet_names = load_excel_sheets(DBDT_PATH)
+    sheet_names = load_excel_sheets(EXCEL_PATH)
     if not sheet_names:
         return
-    
-    # Gestion des arguments passés
-    initial_sheet = None
-    selected_composition = None
-    if len(sys.argv) > 2:
-        initial_sheet = sys.argv[1]
-        selected_composition = sys.argv[2]
-    
-    # Sélection de la feuille
-    selected_sheet = st.selectbox(
-        "Sélectionnez un système",
-        sheet_names,
-        index=sheet_names.index(initial_sheet) if initial_sheet in sheet_names else 0
-    )
-    
-    # Chargement des données
-    try:
-        df = pd.read_excel(DBDT_PATH, sheet_name=selected_sheet)
-        lib_row = pd.read_excel(DBDT_PATH, sheet_name=selected_sheet, header=None).iloc[1]
-        labels = {
-            'vol1': lib_row[0],
-            'vol2': lib_row[1],
-            'vol3': lib_row[2],
-            'sheet': selected_sheet
-        }
         
-        # Nettoyage et tri
-        df = df.dropna(subset=['%Vol1 - UP', '%Vol2 - UP', '%Vol3 - UP', '%Vol1 - LP', '%Vol2 - LP', '%Vol3 - LP'])
-        df = df.sort_values('%Vol3 - UP')
-        
-        # Création du graphique
-        fig = go.Figure()
-
-        # Styles
-        line_style = dict(color='gray', width=1)
-        up_marker = dict(color='red', size=8, symbol='circle')
-        lp_marker = dict(color='blue', size=8, symbol='circle')
-
-        # Courbe UP
-        fig.add_trace(go.Scatter(
-            x=df['%Vol3 - UP'],
-            y=df['%Vol2 - UP'],
-            mode='lines+markers',
-            name='UP',
-            line=dict(
-            color='black',  # Ligne noire
-            width=2        # Épaisseur de 1 pixel
-        ),
-            marker=up_marker,
-            customdata=df[['Composition', '%Vol1 - UP', '%Vol2 - UP', '%Vol3 - UP', '%Vol1 - LP', '%Vol2 - LP', '%Vol3 - LP']].values,
-            hovertemplate=(
-                f'<b>Composition</b>: %{{customdata[0]}}<br>'
-                f'Phase: UP<br>{labels["vol1"]}: %{{customdata[1]:.2f}}<br>'
-                f'{labels["vol2"]}: %{{customdata[2]:.2f}}<br>'
-                f'{labels["vol3"]}: %{{customdata[3]:.2f}}<extra></extra>'
-            )
-        ))
-
-        # Courbe LP
-        fig.add_trace(go.Scatter(
-            x=df['%Vol3 - LP'],
-            y=df['%Vol2 - LP'],
-            mode='lines+markers',
-            name='LP',
-            line=dict(
-            color='black',  # Ligne noire
-            width=2        # Épaisseur de 1 pixel
-        ),
-            marker=lp_marker,
-            customdata=df[['Composition', '%Vol1 - LP', '%Vol2 - LP', '%Vol3 - LP']].values,
-            hovertemplate=(
-                f'<b>Composition</b>: %{{customdata[0]}}<br>'
-                f'Phase: LP<br>{labels["vol1"]}: %{{customdata[1]:.2f}}<br>'
-                f'{labels["vol2"]}: %{{customdata[2]:.2f}}<br>'
-                f'{labels["vol3"]}: %{{customdata[3]:.2f}}<extra></extra>'
-            )
-        ))
-
-        # Lignes de connexion
-        for _, row in df.iterrows():
-            fig.add_trace(go.Scatter(
-                x=[row['%Vol3 - UP'], row['%Vol3 - LP']],
-                y=[row['%Vol2 - UP'], row['%Vol2 - LP']],
-                mode='lines',
-                line=dict(
-                color='blue',  # Ligne bleue
-                width=2        # Épaisseur de 1 pixel
-            ),
-                showlegend=False,
-                hoverinfo='none'
-            ))
-
-        # Triangle de référence
-        fig.add_trace(go.Scatter(
-            x=[0, 1], y=[1, 0],
-            mode='lines',
-            line=dict(color='black', dash='dash'),
-            name='x + y = 1',
-            hoverinfo='none'
-        ))
-
-        # Configuration des axes avec grille améliorée
-        fig.update_layout(
-            xaxis=dict(
-                title=f'% {labels["vol3"]} (%Vol3)',
-                range=[0, 1],
-                dtick=0.1,
-                tick0=0,
-                tickmode='linear',
-                tickvals=np.arange(0, 1.05, 0.05).round(2),
-                showgrid=True,
-                gridwidth=1.5,
-                gridcolor='#666666',
-                griddash='solid',
-                minor=dict(
-                    ticklen=4,
-                    dtick=0.01,
-                    gridcolor='LightGrey',
-                    gridwidth=0.5
-                )
-            ),
-            yaxis=dict(
-                title=f'% {labels["vol2"]} (%Vol2)',
-                range=[0, 1],
-                dtick=0.05,
-                tick0=0,
-                tickmode='linear',
-                tickvals=np.arange(0, 1.05, 0.05).round(2),
-                showgrid=True,
-                gridwidth=1.5,
-                gridcolor='#666666',
-                griddash='solid',
-                minor=dict(
-                    ticklen=4,
-                    dtick=0.01,
-                    gridcolor='LightGrey',
-                    gridwidth=0.5
-                )
-            ),
-            title=f"Ternary Phase Diagram of {labels['vol1']} / {labels['vol2']} / {labels['vol3']} - {labels['sheet']}",
-            width=1400,
-            height=700,
-            hovermode='closest'
+    # Zone de recherche
+    col1, col2 = st.columns([0.7, 0.3])
+    with col1:
+        search_query = st.text_input(
+            "Enter a compound name",
+            key="search_input",
+            placeholder="Search"
         )
+    with col2:
+        st.write("")  # Pour l'alignement
+        if st.button("Search", key="search_button"):
+            st.session_state.search_triggered = True
 
-        # Dans la partie "Affichage en deux colonnes"
-        col1, col2 = st.columns([0.8, 0.2])
+    # Gestion de la recherche
+    if 'search_triggered' not in st.session_state:
+        st.session_state.search_triggered = False
 
-        # Dans la fonction show_dbdt_page(), remplacez la partie "Données brutes" par :
-
-        with col1:
-            st.plotly_chart(fig, use_container_width=True)
-    
-            # Section Données brutes avec utilisation optimale de l'espace
-            st.subheader("Data of selected system")
-    
-            # Définir la hauteur en fonction du nombre de lignes (min 200px, max 600px)
-            table_height = min(200 + len(df) * 35, 600)
-    
-            # Container avec bordure et défilement si nécessaire
-            with st.container(height=table_height, border=True):
-                st.dataframe(
-                    df,
-                    use_container_width=True,
-                    hide_index=True,
-                    height=table_height - 10,  # Compenser la bordure
-                    column_config={
-                        "Composition": st.column_config.TextColumn("Composition"),
-                        "%Vol1 - UP": st.column_config.NumberColumn("UP Vol1", format="%.2f"),
-                        "%Vol2 - UP": st.column_config.NumberColumn("UP Vol2", format="%.2f"),
-                        "%Vol3 - UP": st.column_config.NumberColumn("UP Vol3", format="%.2f"),
-                        "%Vol1 - LP": st.column_config.NumberColumn("LP Vol1", format="%.2f"),
-                        "%Vol2 - LP": st.column_config.NumberColumn("LP Vol2", format="%.2f"),
-                        "%Vol3 - LP": st.column_config.NumberColumn("LP Vol3", format="%.2f")
-                    }
-                )
-        with col2:
-            # Sélection interactive
-            st.subheader("Select a system")
-            selected_composition = st.selectbox(
-                "Select a composition", 
-                df['Composition'].unique(),
-                index=list(df['Composition']).index(selected_composition) if selected_composition in df['Composition'].values else 0
+    if st.session_state.search_triggered or search_query:
+        search_value = search_query.strip().lower()
+        matching_sheets = [sheet for sheet in sheet_names if search_value in sheet.lower()]
+        
+        if not matching_sheets:
+            st.warning("Aucune correspondance trouvée.")
+        else:
+            # Affichage des résultats
+            selected_sheet = st.radio(
+                "Feuilles correspondantes:",
+                matching_sheets,
+                key="sheet_selection"
             )
             
-            selected_row = df[df['Composition'] == selected_composition].iloc[0]
-            phase_data = create_phase_display(selected_row, labels)
+            # Chargement des données de la feuille sélectionnée
+            try:
+                df = pd.read_excel(EXCEL_PATH, sheet_name=selected_sheet)
+                
+                # Colonnes requises et optionnelles
+                required_cols = ['Compound', 'Log KD', 'System', 'Composition']
+                additional_cols = ['Log P (Pubchem)', 'Log P (COSMO-RS)']
+                
+                # Vérification des colonnes disponibles
+                available_cols = [col for col in required_cols + additional_cols if col in df.columns]
+                
+                if len([col for col in required_cols if col in available_cols]) < len(required_cols):
+                    st.error("Les colonnes requises ne sont pas toutes présentes dans la feuille.")
+                else:
+                    # Sélection interactive par ligne
+                    st.subheader("Sélectionnez une entrée")
+                    
+                    # Création d'un dataframe pour la sélection
+                    selection_df = df[available_cols].copy()
+                    selection_df.insert(0, 'Select', False)
+                    
+                    # Configuration des colonnes pour st.data_editor
+                    column_config = {
+                        "Select": st.column_config.CheckboxColumn(
+                            "Select",
+                            help="Select a line by checking a box",
+                            default=False,
+                            required=True
+                        ),
+                        "Composition": st.column_config.TextColumn("Composition"),
+                    }
+                    
+                    # Affichage du tableau avec case à cocher
+                    edited_df = st.data_editor(
+                        selection_df,
+                        column_config=column_config,
+                        use_container_width=True,
+                        hide_index=True,
+                        disabled=[col for col in available_cols],
+                        key="data_editor"
+                    )
+                    
+                    # Récupération de la ligne sélectionnée
+                    selected_rows = edited_df[edited_df['Select']]
+                    
+                    if not selected_rows.empty:
+                        # Ne garder que la première sélection si plusieurs cases cochées
+                        selected_row = selected_rows.iloc[0]
+                        system_name = selected_row['System']
+                        selected_composition = str(selected_row['Composition'])  # Convertir en string pour la comparaison
+                        
+                        # Déterminer si c'est un système ternaire ou quaternaire
+                        is_quaternary = st.checkbox("Afficher en diagramme quaternaire", key="quaternary_check")
+                        
+                        # Chargement des données du système correspondant
+                        try:
+                            # Charger toutes les feuilles du fichier approprié
+                            target_file = DBDQ_PATH if is_quaternary else DBDT_PATH
+                            all_sheets = pd.read_excel(target_file, sheet_name=None)
+                            
+                            if system_name not in all_sheets:
+                                st.error(f"Aucune donnée trouvée pour le système {system_name}")
+                            else:
+                                df_system = all_sheets[system_name]
+                                # Convertir la colonne Composition en string pour la comparaison
+                                df_system['Composition'] = df_system['Composition'].astype(str)
+                                df_filtered = df_system[df_system['Composition'] == selected_composition]
+                                
+                                if df_filtered.empty:
+                                    st.error(f"Aucune donnée trouvée pour la composition {selected_composition} dans le système {system_name}")
+                                    st.write("Compositions disponibles:", df_system['Composition'].unique())
+                                else:
+                                    if is_quaternary:
+                                        show_quaternary_diagram(df_system, df_filtered, system_name, selected_composition)
+                                    else:
+                                        show_ternary_diagram(df_system, df_filtered, system_name, selected_composition)
+                        
+                        except Exception as e:
+                            st.error(f"Erreur lors du chargement du système {system_name}: {str(e)}")
+                    else:
+                        st.info("Veuillez sélectionner une ligne dans le tableau pour afficher les détails")
             
-            # Affichage des compositions
-            st.subheader("Phase composition")
-            
-            for phase, color in [('UP', 'red'), ('LP', 'blue')]:
-                with st.expander(f"Phase {phase}", expanded=True):
-                    st.markdown(f"""
-                    **{labels['vol1']}:** {phase_data[phase]['vol1']:.2f}  
-                    **{labels['vol2']}:** {phase_data[phase]['vol2']:.2f}  
-                    **{labels['vol3']}:** {phase_data[phase]['vol3']:.2f}
-                    """)
-    
-    except Exception as e:
-        st.error(f"Erreur lors du traitement des données: {str(e)}")
+            except Exception as e:
+                st.error(f"Erreur lors du chargement des données: {str(e)}")
+
+    # Bouton pour effacer la recherche
+    if st.session_state.search_triggered:
+        if st.button("Effacer la recherche"):
+            st.session_state.search_triggered = False
+            st.rerun()
     
     # Bouton de retour
-    if st.button("Retour à l'accueil", key="dbdt_back"):
+    if st.button("Retour à l'accueil", key="kddb_back"):
         st.session_state.current_page = "home"
         st.rerun()
 
