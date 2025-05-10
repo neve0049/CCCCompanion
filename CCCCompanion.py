@@ -235,7 +235,181 @@ def show_kddb_page():
     if st.button("Retour à l'accueil", key="kddb_back"):
         st.session_state.current_page = "home"
         st.rerun()
+def show_dbdt_page():
+    """Page Ternary Phase Diagrams - Version complète"""
+    st.title("Ternary Phase Diagrams")
+    
+    try:
+        # Chargement des noms de feuilles
+        sheet_names = load_excel_sheets(DBDT_PATH)
+        if not sheet_names:
+            st.warning("Aucune feuille trouvée dans le fichier DBDT.xlsx")
+            return
+        
+        # Sélection de la feuille
+        selected_sheet = st.selectbox(
+            "Sélectionnez un système",
+            sheet_names,
+            key="dbdt_sheet_select"
+        )
+        
+        # Chargement des données
+        try:
+            df = pd.read_excel(DBDT_PATH, sheet_name=selected_sheet)
+            
+            # Vérifier que les colonnes nécessaires existent
+            required_cols = ['Composition', '%Vol1 - UP', '%Vol2 - UP', '%Vol3 - UP', 
+                            '%Vol1 - LP', '%Vol2 - LP', '%Vol3 - LP']
+            
+            missing_cols = [col for col in required_cols if col not in df.columns]
+            if missing_cols:
+                st.error(f"Colonnes manquantes: {', '.join(missing_cols)}")
+                return
+            
+            # Nettoyage des données
+            df = df.dropna(subset=['%Vol1 - UP', '%Vol2 - UP', '%Vol3 - UP', 
+                                 '%Vol1 - LP', '%Vol2 - LP', '%Vol3 - LP'])
+            
+            # Récupérer les noms des solvants (première ligne après l'en-tête)
+            lib_row = pd.read_excel(DBDT_PATH, sheet_name=selected_sheet, header=None).iloc[1]
+            labels = {
+                'vol1': lib_row[0],
+                'vol2': lib_row[1],
+                'vol3': lib_row[2],
+                'sheet': selected_sheet
+            }
+            
+            # Création du graphique
+            fig = go.Figure()
 
+            # Courbe UP
+            fig.add_trace(go.Scatter(
+                x=df['%Vol3 - UP'],
+                y=df['%Vol2 - UP'],
+                mode='lines+markers',
+                name='UP',
+                line=dict(color='black', width=2),
+                marker=dict(color='red', size=8, symbol='circle'),
+                customdata=df[['Composition', '%Vol1 - UP', '%Vol2 - UP', '%Vol3 - UP']].values,
+                hovertemplate=(
+                    f'<b>Composition</b>: %{{customdata[0]}}<br>'
+                    f'Phase: UP<br>{labels["vol1"]}: %{{customdata[1]:.2f}}<br>'
+                    f'{labels["vol2"]}: %{{customdata[2]:.2f}}<br>'
+                    f'{labels["vol3"]}: %{{customdata[3]:.2f}}<extra></extra>'
+                )
+            ))
+
+            # Courbe LP
+            fig.add_trace(go.Scatter(
+                x=df['%Vol3 - LP'],
+                y=df['%Vol2 - LP'],
+                mode='lines+markers',
+                name='LP',
+                line=dict(color='black', width=2),
+                marker=dict(color='blue', size=8, symbol='circle'),
+                customdata=df[['Composition', '%Vol1 - LP', '%Vol2 - LP', '%Vol3 - LP']].values,
+                hovertemplate=(
+                    f'<b>Composition</b>: %{{customdata[0]}}<br>'
+                    f'Phase: LP<br>{labels["vol1"]}: %{{customdata[1]:.2f}}<br>'
+                    f'{labels["vol2"]}: %{{customdata[2]:.2f}}<br>'
+                    f'{labels["vol3"]}: %{{customdata[3]:.2f}}<extra></extra>'
+                )
+            ))
+
+            # Lignes de connexion
+            for _, row in df.iterrows():
+                fig.add_trace(go.Scatter(
+                    x=[row['%Vol3 - UP'], row['%Vol3 - LP']],
+                    y=[row['%Vol2 - UP'], row['%Vol2 - LP']],
+                    mode='lines',
+                    line=dict(color='blue', width=2),
+                    showlegend=False,
+                    hoverinfo='none'
+                ))
+
+            # Triangle de référence
+            fig.add_trace(go.Scatter(
+                x=[0, 1], y=[1, 0],
+                mode='lines',
+                line=dict(color='black', dash='dash'),
+                name='x + y = 1',
+                hoverinfo='none'
+            ))
+
+            # Configuration des axes
+            fig.update_layout(
+                xaxis=dict(
+                    title=f'% {labels["vol3"]} (%Vol3)',
+                    range=[0, 1],
+                    dtick=0.1,
+                    showgrid=True,
+                    gridwidth=1.5,
+                    gridcolor='#666666'
+                ),
+                yaxis=dict(
+                    title=f'% {labels["vol2"]} (%Vol2)',
+                    range=[0, 1],
+                    dtick=0.1,
+                    showgrid=True,
+                    gridwidth=1.5,
+                    gridcolor='#666666'
+                ),
+                title=f"Ternary Phase Diagram: {labels['vol1']} / {labels['vol2']} / {labels['vol3']}",
+                width=1400,
+                height=700,
+                hovermode='closest'
+            )
+
+            # Affichage en deux colonnes
+            col1, col2 = st.columns([0.8, 0.2])
+
+            with col1:
+                st.plotly_chart(fig, use_container_width=True)
+
+                # Affichage des données brutes
+                st.subheader("Raw Data")
+                st.dataframe(
+                    df,
+                    use_container_width=True,
+                    hide_index=True,
+                    height=400
+                )
+
+            with col2:
+                # Sélection interactive
+                st.subheader("Select a composition")
+                selected_composition = st.selectbox(
+                    "Select by composition", 
+                    df['Composition'].unique(),
+                    key="dbdt_composition_select"
+                )
+                
+                selected_row = df[df['Composition'] == selected_composition].iloc[0]
+                phase_data = create_phase_display(selected_row, labels)
+                
+                # Affichage des compositions
+                st.subheader("Phase composition")
+                
+                for phase, color in [('UP', 'red'), ('LP', 'blue')]:
+                    with st.expander(f"Phase {phase}", expanded=True):
+                        st.markdown(f"""
+                        **{labels['vol1']}:** {phase_data[phase]['vol1']:.2f}  
+                        **{labels['vol2']}:** {phase_data[phase]['vol2']:.2f}  
+                        **{labels['vol3']}:** {phase_data[phase]['vol3']:.2f}
+                        """)
+
+        except Exception as e:
+            st.error(f"Erreur lors du chargement des données: {str(e)}")
+            st.error("Veuillez vérifier que le fichier DBDT.xlsx est correctement formaté.")
+
+    except Exception as e:
+        st.error(f"Erreur critique: {str(e)}")
+    
+    # Bouton de retour
+    if st.button("Retour à l'accueil", key="dbdt_back"):
+        st.session_state.current_page = "home"
+        st.rerun()
+        
 def show_ternary_diagram(df_system, df_filtered, system_name, selected_composition):
     """Affiche un diagramme ternaire"""
     # Récupérer les labels des solvants depuis la première ligne
@@ -847,36 +1021,33 @@ def main():
     # Initialisation de l'état
     if 'current_page' not in st.session_state:
         st.session_state.current_page = "home"
-    if 'search_triggered' not in st.session_state:
-        st.session_state.search_triggered = False
-    if 'search_query' not in st.session_state:
-        st.session_state.search_query = ""
     
     # Navigation
     with st.sidebar:
         st.title("Navigation")
         if st.button("Home"):
             st.session_state.current_page = "home"
-            st.rerun()
         if st.button("KD Database Explorer"):
             st.session_state.current_page = "kddb"
-            st.rerun()
         if st.button("Ternary Diagrams"):
             st.session_state.current_page = "dbdt"
-            st.rerun()
         if st.button("Quaternary Diagrams"):
             st.session_state.current_page = "dbdq"
-            st.rerun()
     
     # Router vers la page active
-    if st.session_state.current_page == "home":
-        show_home_page()
-    elif st.session_state.current_page == "kddb":
-        show_kddb_page()
-    elif st.session_state.current_page == "dbdt":
-        show_dbdt_page()
-    elif st.session_state.current_page == "dbdq":
-        show_dbdq_page()
+    try:
+        if st.session_state.current_page == "home":
+            show_home_page()
+        elif st.session_state.current_page == "kddb":
+            show_kddb_page()
+        elif st.session_state.current_page == "dbdt":
+            show_dbdt_page()
+        elif st.session_state.current_page == "dbdq":
+            show_dbdq_page()
+    except Exception as e:
+        st.error(f"Une erreur est survenue: {str(e)}")
+        st.session_state.current_page = "home"
+        st.rerun()
 
 if __name__ == "__main__":
     main()
