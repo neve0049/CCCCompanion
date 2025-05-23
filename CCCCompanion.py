@@ -228,15 +228,15 @@ def show_kddb_page():
                                 img = smiles_to_image(selected_row['SMILES'], width=400)  # Taille augmentée
                                 st.image(img, use_column_width=False)  # Désactive l'ajustement automatique
                                 st.markdown("---")  # Ligne de séparation
-                                    try:
-                                        img = smiles_to_image(selected_row['SMILES'])
-                                        if img:
-                                            st.image(img, caption=f"Structure de {selected_row['Compound']}", use_column_width=True)
-                                        else:
-                                            st.warning("Impossible de générer la structure")
-                                    except Exception as e:
+                                try:
+                                    img = smiles_to_image(selected_row['SMILES'])
+                                    if img:
+                                        st.image(img, caption=f"Structure de {selected_row['Compound']}", use_column_width=True)
+                                    else:
+                                        st.warning("Impossible de générer la structure")
+                                except Exception as e:
                                         st.error(f"Erreur de génération: {str(e)}")
-                                else:
+                            else:
                                     st.warning("Pas de SMILES disponible")
                         
                         with col_data:
