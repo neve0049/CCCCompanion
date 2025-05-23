@@ -27,12 +27,28 @@ st.set_page_config(
 # =============================================
 
 def smiles_to_image(smiles):
-    """Convertit un SMILES en image PIL"""
-    mol = Chem.MolFromSmiles(smiles)
-    if mol is None:
+    """Convertit un SMILES en image PIL avec gestion d'erreur améliorée"""
+    try:
+        # Vérifie si le SMILES est valide
+        if not smiles or pd.isna(smiles):
+            return None
+            
+        # Convertit le SMILES en molécule
+        mol = Chem.MolFromSmiles(smiles)
+        if mol is None:
+            st.warning(f"SMILES invalide: {smiles}")
+            return None
+            
+        # Ajoute des coordonnées 2D
+        AllChem.Compute2DCoords(mol)
+        
+        # Génère l'image
+        img = Draw.MolToImage(mol, size=(300, 300))
+        return img
+        
+    except Exception as e:
+        st.error(f"Erreur dans smiles_to_image: {str(e)}")
         return None
-    img = Draw.MolToImage(mol)
-    return img
 
 @st.cache_data
 def load_excel_sheets(file_path):
@@ -747,7 +763,7 @@ def show_kddb_page():
                 
                 # Colonnes requises et optionnelles
                 required_cols = ['Compound', 'Log KD', 'System', 'Composition']
-                additional_cols = ['Log P (Pubchem)', 'Log P (COSMO-RS)']
+                additional_cols = ['Log P (Pubchem)', 'Log P (COSMO-RS)', 'SMILES']
                 
                 # Vérification des colonnes disponibles
                 available_cols = [col for col in required_cols + additional_cols if col in df.columns]
