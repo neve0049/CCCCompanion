@@ -3,6 +3,18 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 import sys
+from rdkit import Chem
+from rdkit.Chem import Draw
+from PIL import Image
+import io
+
+def smiles_to_image(smiles):
+    """Convertit un SMILES en image PIL"""
+    mol = Chem.MolFromSmiles(smiles)
+    if mol is None:
+        return None
+    img = Draw.MolToImage(mol)
+    return img
 
 # Configuration des chemins des fichiers
 EXCEL_PATH = "KDDB.xlsx"
@@ -149,7 +161,7 @@ def show_kddb_page():
                 
                 # Colonnes requises et optionnelles
                 required_cols = ['Compound', 'Log KD', 'System', 'Composition']
-                additional_cols = ['Log P (Pubchem)', 'Log P (COSMO-RS)']
+                additional_cols = ['Log P (Pubchem)', 'Log P (COSMO-RS)', 'SMILES']  # Ajout de SMILES
                 
                 # Vérification des colonnes disponibles
                 available_cols = [col for col in required_cols + additional_cols if col in df.columns]
@@ -194,6 +206,18 @@ def show_kddb_page():
                         system_name = selected_row['System']
                         selected_composition = selected_row['Composition']
                         
+                        # Afficher la structure si SMILES disponible
+                        if 'SMILES' in selected_row and pd.notna(selected_row['SMILES']):
+                            st.subheader("Structure moléculaire")
+                            try:
+                                img = smiles_to_image(selected_row['SMILES'])
+                                if img:
+                                    st.image(img, caption=f"Structure de {selected_row['Compound']}", width=300)
+                                else:
+                                    st.warning("Impossible de générer la structure à partir des SMILES fournis")
+                            except Exception as e:
+                                st.error(f"Erreur lors de la génération de la structure: {str(e)}")
+                        
                         # Déterminer si c'est un système ternaire ou quaternaire
                         is_quaternary = st.checkbox("Afficher en diagramme quaternaire", key="quaternary_check")
                         
@@ -235,9 +259,6 @@ def show_kddb_page():
     if st.button("Retour à l'accueil", key="kddb_back"):
         st.session_state.current_page = "home"
         st.rerun()
-def show_dbdt_page():
-    """Page Ternary Phase Diagrams - Version complète"""
-    st.title("Ternary Phase Diagrams")
     
     try:
         # Chargement des noms de feuilles
