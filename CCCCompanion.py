@@ -139,9 +139,6 @@ def show_kddb_page():
                 if len([col for col in required_cols if col in available_cols]) < len(required_cols):
                     st.error("Les colonnes requises ne sont pas toutes présentes dans la feuille.")
                 else:
-                    # Sélection interactive par ligne
-                    st.subheader("Sélectionnez une entrée")
-                    
                     # Création d'un dataframe pour la sélection
                     selection_df = df[available_cols].copy()
                     selection_df.insert(0, 'Select', False)
@@ -170,39 +167,36 @@ def show_kddb_page():
                     # Récupération de la ligne sélectionnée
                     selected_rows = edited_df[edited_df['Select']]
                     
-                    # Deux colonnes pour séparer le tableau et l'affichage de la structure
-                    col_table, col_structure = st.columns([2, 1])
-                    
-                    with col_table:
-                        if edited_df is not None:
-                            st.dataframe(edited_df[available_cols], use_container_width=True, hide_index=True)
-                        
-                        if not selected_rows.empty:
-                            # Ne garder que la première sélection si plusieurs cases cochées
-                            selected_row = selected_rows.iloc[0]
-                            system_name = selected_row['System']
-                            selected_composition = selected_row['Composition']
-                        else:
-                            selected_row = None
-                    
-                    with col_structure:
-                        if selected_row is not None:
-                            smiles = selected_row['SMILES']
-                            if pd.notna(smiles) and smiles.strip() != "":
-                                mol = Chem.MolFromSmiles(smiles)
-                                if mol is not None:
-                                    img = Draw.MolToImage(mol)
-                                    st.image(img, caption=f'Structure de {selected_composition}', use_column_width=True)
-                                else:
-                                    st.warning("Impossible de générer la structure à partir du SMILES.")
+                    # Afficher la structure au-dessus si selectionnée
+                    if not selected_rows.empty:
+                        selected_row = selected_rows.iloc[0]
+                        selected_composition = selected_row['Composition']
+                        smiles = selected_row['SMILES']
+
+                        st.markdown("### Structure du composé sélectionné")
+                        if pd.notna(smiles) and smiles.strip() != "":
+                            mol = Chem.MolFromSmiles(smiles)
+                            if mol is not None:
+                                img = Draw.MolToImage(mol)
+                                st.image(img, use_column_width=False, width=250)
                             else:
-                                st.info("SMILES non disponible pour ce composé.")
-                        
-                    if selected_row is not None:
-                        # Déterminer si c'est un système ternaire ou quaternaire
+                                st.warning("Impossible de générer la structure à partir du SMILES.")
+                        else:
+                            st.info("SMILES non disponible pour ce composé.")
+                    else:
+                        st.info("Veuillez sélectionner une ligne pour afficher la structure du composé.")
+                    
+                    # Affichage du tableau sous l'image
+                    st.subheader("Données des composés")
+                    st.dataframe(edited_df[available_cols], use_container_width=True, hide_index=True)
+
+                    # Si une ligne est sélectionnée, charger et afficher les diagrammes
+                    if not selected_rows.empty:
+                        selected_row = selected_rows.iloc[0]
+                        system_name = selected_row['System']
+                        selected_composition = selected_row['Composition']
                         is_quaternary = st.checkbox("Afficher en diagramme quaternaire", key="quaternary_check")
                         
-                        # Chargement des données du système correspondant
                         try:
                             target_file = DBDQ_PATH if is_quaternary else DBDT_PATH
                             all_sheets = pd.read_excel(target_file, sheet_name=None)
@@ -225,9 +219,7 @@ def show_kddb_page():
                                         show_ternary_diagram(df_system, df_filtered, system_name, selected_composition)
                         except Exception as e:
                             st.error(f"Erreur lors du chargement du système {system_name}: {str(e)}")
-                    else:
-                        st.info("Veuillez sélectionner une ligne dans le tableau pour afficher les détails")
-            
+
             except Exception as e:
                 st.error(f"Erreur lors du chargement des données: {str(e)}")
 
