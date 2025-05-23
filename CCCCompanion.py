@@ -7,6 +7,7 @@ import rdkit
 from rdkit import Chem
 from rdkit.Chem import Draw
 from PIL import Image
+from rdkit.Chem import AllChem  # Ajoutez cet import en haut du fichier
 import io
 
 # Configuration des chemins des fichiers
@@ -26,28 +27,25 @@ st.set_page_config(
 # Fonctions utilitaires
 # =============================================
 
-def smiles_to_image(smiles):
+def smiles_to_image(smiles, width=300):
     """Convertit un SMILES en image PIL avec gestion d'erreur améliorée"""
     try:
-        # Vérifie si le SMILES est valide
         if not smiles or pd.isna(smiles):
             return None
             
-        # Convertit le SMILES en molécule
         mol = Chem.MolFromSmiles(smiles)
         if mol is None:
-            st.warning(f"SMILES invalide: {smiles}")
+            st.warning(f"SMILES invalide : {smiles}")
             return None
             
-        # Ajoute des coordonnées 2D
+        # Ajoute des coordonnées 2D pour un meilleur rendu
         AllChem.Compute2DCoords(mol)
         
-        # Génère l'image
-        img = Draw.MolToImage(mol, size=(300, 300))
+        img = Draw.MolToImage(mol, size=(width, width))
         return img
         
     except Exception as e:
-        st.error(f"Erreur dans smiles_to_image: {str(e)}")
+        st.error(f"Erreur de conversion SMILES : {str(e)}")
         return None
 
 @st.cache_data
