@@ -26,6 +26,14 @@ st.set_page_config(
 # Fonctions utilitaires
 # =============================================
 
+def smiles_to_image(smiles):
+    """Convertit un SMILES en image PIL"""
+    mol = Chem.MolFromSmiles(smiles)
+    if mol is None:
+        return None
+    img = Draw.MolToImage(mol)
+    return img
+
 @st.cache_data
 def load_excel_sheets(file_path):
     """Charge les noms de feuilles d'un fichier Excel avec gestion d'erreur"""
