@@ -1,11 +1,8 @@
-from rdkit import Chem
-from rdkit.Chem import Draw
 import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 import sys
-from io import BytesIO
 
 # Configuration des chemins des fichiers
 EXCEL_PATH = "KDDB.xlsx"
@@ -106,7 +103,6 @@ def show_home_page():
             st.session_state.current_page = "dbdq"
             st.rerun()
 
-                        
 def show_kddb_page():
     """Page KD Database Explorer - Version avec sélection par ligne"""
     st.title("KD Database Explorer")
@@ -152,7 +148,7 @@ def show_kddb_page():
                 df = pd.read_excel(EXCEL_PATH, sheet_name=selected_sheet)
                 
                 # Colonnes requises et optionnelles
-                required_cols = ['Compound', 'Log KD', 'System', 'Composition', 'SMILES']
+                required_cols = ['Compound', 'Log KD', 'System', 'Composition']
                 additional_cols = ['Log P (Pubchem)', 'Log P (COSMO-RS)']
                 
                 # Vérification des colonnes disponibles
@@ -197,14 +193,7 @@ def show_kddb_page():
                         selected_row = selected_rows.iloc[0]
                         system_name = selected_row['System']
                         selected_composition = selected_row['Composition']
-                        smiles = selected_row['SMILES']  # Récupérer le SMILES
-
-                        # Afficher la structure du composé
-                        if pd.notna(smiles):
-                            mol = Chem.MolFromSmiles(smiles)
-                            img = Draw.MolToImage(mol)
-                            st.image(img, caption=f'Structure de {selected_composition}', use_column_width=True)
-
+                        
                         # Déterminer si c'est un système ternaire ou quaternaire
                         is_quaternary = st.checkbox("Afficher en diagramme quaternaire", key="quaternary_check")
                         
@@ -246,7 +235,6 @@ def show_kddb_page():
     if st.button("Retour à l'accueil", key="kddb_back"):
         st.session_state.current_page = "home"
         st.rerun()
-
 def show_dbdt_page():
     """Page Ternary Phase Diagrams - Version complète"""
     st.title("Ternary Phase Diagrams")
