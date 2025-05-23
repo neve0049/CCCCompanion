@@ -221,12 +221,13 @@ def show_kddb_page():
                         
                         # Création de colonnes pour l'affichage
                         col_struct, col_data = st.columns([1, 2])
-                        
+
                         with col_struct:
-                            # Afficher la structure si SMILES disponible
-                            if 'SMILES' in selected_row:
-                                st.subheader("Structure moléculaire")
-                                if pd.notna(selected_row['SMILES']):
+                            st.subheader("Structure moléculaire")
+                            if pd.notna(selected_row['SMILES']):
+                                img = smiles_to_image(selected_row['SMILES'], width=400)  # Taille augmentée
+                                st.image(img, use_column_width=False)  # Désactive l'ajustement automatique
+                                st.markdown("---")  # Ligne de séparation
                                     try:
                                         img = smiles_to_image(selected_row['SMILES'])
                                         if img:
