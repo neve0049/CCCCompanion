@@ -3,8 +3,6 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 import sys
-from rdkit import Chem
-from rdkit.Chem import Draw
 
 # Configuration des chemins des fichiers
 EXCEL_PATH = "KDDB.xlsx"
@@ -85,6 +83,26 @@ def quaternary_to_3d(v1, v2, v3, v4):
 # Pages de l'application
 # =============================================
 
+def show_home_page():
+    st.title("CCCCompanion ")
+    st.markdown("""
+    Welcome to the CCCCompanion app. Please select a database to explore:
+    """)
+    
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        if st.button("KD Database Explorer", use_container_width=True, key="kddb_home"):
+            st.session_state.current_page = "kddb"
+            st.rerun()
+    with col2:
+        if st.button("Ternary Phase Diagrams", use_container_width=True, key="dbdt_home"):
+            st.session_state.current_page = "dbdt"
+            st.rerun()
+    with col3:
+        if st.button("Quaternary Phase Diagrams", use_container_width=True, key="dbdq_home"):
+            st.session_state.current_page = "dbdq"
+            st.rerun()
+
 def show_kddb_page():
     """Page KD Database Explorer - Version avec sélection par ligne"""
     st.title("KD Database Explorer")
@@ -130,7 +148,7 @@ def show_kddb_page():
                 df = pd.read_excel(EXCEL_PATH, sheet_name=selected_sheet)
                 
                 # Colonnes requises et optionnelles
-                required_cols = ['Compound', 'Log KD', 'System', 'Composition', 'SMILES']
+                required_cols = ['Compound', 'Log KD', 'System', 'Composition']
                 additional_cols = ['Log P (Pubchem)', 'Log P (COSMO-RS)']
                 
                 # Vérification des colonnes disponibles
@@ -139,6 +157,9 @@ def show_kddb_page():
                 if len([col for col in required_cols if col in available_cols]) < len(required_cols):
                     st.error("Les colonnes requises ne sont pas toutes présentes dans la feuille.")
                 else:
+                    # Sélection interactive par ligne
+                    st.subheader("Sélectionnez une entrée")
+                    
                     # Création d'un dataframe pour la sélection
                     selection_df = df[available_cols].copy()
                     selection_df.insert(0, 'Select', False)
@@ -167,37 +188,18 @@ def show_kddb_page():
                     # Récupération de la ligne sélectionnée
                     selected_rows = edited_df[edited_df['Select']]
                     
-                    # Afficher la structure au-dessus si selectionnée
                     if not selected_rows.empty:
-                        selected_row = selected_rows.iloc[0]
-                        selected_composition = selected_row['Composition']
-                        smiles = selected_row['SMILES']
-
-                        st.markdown("### Structure du composé sélectionné")
-                        if pd.notna(smiles) and smiles.strip() != "":
-                            mol = Chem.MolFromSmiles(smiles)
-                            if mol is not None:
-                                img = Draw.MolToImage(mol)
-                                st.image(img, use_column_width=False, width=250)
-                            else:
-                                st.warning("Impossible de générer la structure à partir du SMILES.")
-                        else:
-                            st.info("SMILES non disponible pour ce composé.")
-                    else:
-                        st.info("Veuillez sélectionner une ligne pour afficher la structure du composé.")
-                    
-                    # Affichage du tableau sous l'image
-                    st.subheader("Données des composés")
-                    st.dataframe(edited_df[available_cols], use_container_width=True, hide_index=True)
-
-                    # Si une ligne est sélectionnée, charger et afficher les diagrammes
-                    if not selected_rows.empty:
+                        # Ne garder que la première sélection si plusieurs cases cochées
                         selected_row = selected_rows.iloc[0]
                         system_name = selected_row['System']
                         selected_composition = selected_row['Composition']
+                        
+                        # Déterminer si c'est un système ternaire ou quaternaire
                         is_quaternary = st.checkbox("Afficher en diagramme quaternaire", key="quaternary_check")
                         
+                        # Chargement des données du système correspondant
                         try:
+                            # Charger toutes les feuilles du fichier approprié
                             target_file = DBDQ_PATH if is_quaternary else DBDT_PATH
                             all_sheets = pd.read_excel(target_file, sheet_name=None)
                             
@@ -205,21 +207,21 @@ def show_kddb_page():
                                 st.error(f"Aucune donnée trouvée pour le système {system_name}")
                             else:
                                 df_system = all_sheets[system_name]
-                                df_system['Composition'] = df_system['Composition'].astype(str)
-                                selected_composition_str = str(selected_composition)
-                                df_filtered = df_system[df_system['Composition'] == selected_composition_str]
+                                df_filtered = df_system[df_system['Composition'] == selected_composition]
                                 
                                 if df_filtered.empty:
                                     st.error(f"Aucune donnée trouvée pour la composition {selected_composition} dans le système {system_name}")
-                                    st.write("Compositions disponibles:", df_system['Composition'].unique())
                                 else:
                                     if is_quaternary:
                                         show_quaternary_diagram(df_system, df_filtered, system_name, selected_composition)
                                     else:
                                         show_ternary_diagram(df_system, df_filtered, system_name, selected_composition)
+                        
                         except Exception as e:
                             st.error(f"Erreur lors du chargement du système {system_name}: {str(e)}")
-
+                    else:
+                        st.info("Veuillez sélectionner une ligne dans le tableau pour afficher les détails")
+            
             except Exception as e:
                 st.error(f"Erreur lors du chargement des données: {str(e)}")
 
@@ -233,7 +235,6 @@ def show_kddb_page():
     if st.button("Retour à l'accueil", key="kddb_back"):
         st.session_state.current_page = "home"
         st.rerun()
-        
 def show_dbdt_page():
     """Page Ternary Phase Diagrams - Version complète"""
     st.title("Ternary Phase Diagrams")
