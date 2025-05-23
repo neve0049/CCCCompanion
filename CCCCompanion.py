@@ -3,12 +3,6 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 import sys
-import rdkit
-from rdkit import Chem
-from rdkit.Chem import Draw
-from PIL import Image
-from rdkit.Chem import AllChem  # Ajoutez cet import en haut du fichier
-import io
 
 # Configuration des chemins des fichiers
 EXCEL_PATH = "KDDB.xlsx"
@@ -26,27 +20,6 @@ st.set_page_config(
 # =============================================
 # Fonctions utilitaires
 # =============================================
-
-def smiles_to_image(smiles, width=300):
-    """Convertit un SMILES en image PIL avec gestion d'erreur améliorée"""
-    try:
-        if not smiles or pd.isna(smiles):
-            return None
-            
-        mol = Chem.MolFromSmiles(smiles)
-        if mol is None:
-            st.warning(f"SMILES invalide : {smiles}")
-            return None
-            
-        # Ajoute des coordonnées 2D pour un meilleur rendu
-        AllChem.Compute2DCoords(mol)
-        
-        img = Draw.MolToImage(mol, size=(width, width))
-        return img
-        
-    except Exception as e:
-        st.error(f"Erreur de conversion SMILES : {str(e)}")
-        return None
 
 @st.cache_data
 def load_excel_sheets(file_path):
@@ -176,7 +149,7 @@ def show_kddb_page():
                 
                 # Colonnes requises et optionnelles
                 required_cols = ['Compound', 'Log KD', 'System', 'Composition']
-                additional_cols = ['Log P (Pubchem)', 'Log P (COSMO-RS)', 'SMILES']
+                additional_cols = ['Log P (Pubchem)', 'Log P (COSMO-RS)']
                 
                 # Vérification des colonnes disponibles
                 available_cols = [col for col in required_cols + additional_cols if col in df.columns]
@@ -218,59 +191,36 @@ def show_kddb_page():
                     if not selected_rows.empty:
                         # Ne garder que la première sélection si plusieurs cases cochées
                         selected_row = selected_rows.iloc[0]
+                        system_name = selected_row['System']
+                        selected_composition = selected_row['Composition']
                         
-                        # Création de colonnes pour l'affichage
-                        col_struct, col_data = st.columns([1, 2])
-
-                        with col_struct:
-                            st.subheader("Structure moléculaire")
-                            if pd.notna(selected_row['SMILES']):
-                                img = smiles_to_image(selected_row['SMILES'], width=400)  # Taille augmentée
-                                st.image(img, use_column_width=False)  # Désactive l'ajustement automatique
-                                st.markdown("---")  # Ligne de séparation
-                                try:
-                                    img = smiles_to_image(selected_row['SMILES'])
-                                    if img:
-                                        st.image(img, caption=f"Structure de {selected_row['Compound']}", use_column_width=True)
-                                    else:
-                                        st.warning("Impossible de générer la structure")
-                                except Exception as e:
-                                        st.error(f"Erreur de génération: {str(e)}")
+                        # Déterminer si c'est un système ternaire ou quaternaire
+                        is_quaternary = st.checkbox("Afficher en diagramme quaternaire", key="quaternary_check")
+                        
+                        # Chargement des données du système correspondant
+                        try:
+                            # Charger toutes les feuilles du fichier approprié
+                            target_file = DBDQ_PATH if is_quaternary else DBDT_PATH
+                            all_sheets = pd.read_excel(target_file, sheet_name=None)
+                            
+                            if system_name not in all_sheets:
+                                st.error(f"Aucune donnée trouvée pour le système {system_name}")
                             else:
-                                    st.warning("Pas de SMILES disponible")
-                        
-                        with col_data:
-                            system_name = selected_row['System']
-                            selected_composition = selected_row['Composition']
-                            
-                            # Déterminer si c'est un système ternaire ou quaternaire
-                            is_quaternary = st.checkbox("Afficher en diagramme quaternaire", key="quaternary_check")
-                            
-                            # Chargement des données du système correspondant
-                            try:
-                                # Charger toutes les feuilles du fichier approprié
-                                target_file = DBDQ_PATH if is_quaternary else DBDT_PATH
-                                all_sheets = pd.read_excel(target_file, sheet_name=None)
+                                df_system = all_sheets[system_name]
+                                df_filtered = df_system[df_system['Composition'] == selected_composition]
                                 
-                                if system_name not in all_sheets:
-                                    st.error(f"Aucune donnée trouvée pour le système {system_name}")
+                                if df_filtered.empty:
+                                    st.error(f"Aucune donnée trouvée pour la composition {selected_composition} dans le système {system_name}")
                                 else:
-                                    df_system = all_sheets[system_name]
-                                    df_system['Composition'] = df_system['Composition'].astype(str)
-                                    df_filtered = df_system[df_system['Composition'] == str(selected_composition)]
-                                    
-                                    if df_filtered.empty:
-                                        st.error(f"Aucune donnée trouvée pour la composition {selected_composition}")
+                                    if is_quaternary:
+                                        show_quaternary_diagram(df_system, df_filtered, system_name, selected_composition)
                                     else:
-                                        if is_quaternary:
-                                            show_quaternary_diagram(df_system, df_filtered, system_name, selected_composition)
-                                        else:
-                                            show_ternary_diagram(df_system, df_filtered, system_name, selected_composition)
-                            
-                            except Exception as e:
-                                st.error(f"Erreur lors du chargement du système: {str(e)}")
+                                        show_ternary_diagram(df_system, df_filtered, system_name, selected_composition)
+                        
+                        except Exception as e:
+                            st.error(f"Erreur lors du chargement du système {system_name}: {str(e)}")
                     else:
-                        st.info("Veuillez sélectionner une ligne dans le tableau")
+                        st.info("Veuillez sélectionner une ligne dans le tableau pour afficher les détails")
             
             except Exception as e:
                 st.error(f"Erreur lors du chargement des données: {str(e)}")
@@ -285,6 +235,9 @@ def show_kddb_page():
     if st.button("Retour à l'accueil", key="kddb_back"):
         st.session_state.current_page = "home"
         st.rerun()
+def show_dbdt_page():
+    """Page Ternary Phase Diagrams - Version complète"""
+    st.title("Ternary Phase Diagrams")
     
     try:
         # Chargement des noms de feuilles
@@ -769,7 +722,7 @@ def show_kddb_page():
                 
                 # Colonnes requises et optionnelles
                 required_cols = ['Compound', 'Log KD', 'System', 'Composition']
-                additional_cols = ['Log P (Pubchem)', 'Log P (COSMO-RS)', 'SMILES']
+                additional_cols = ['Log P (Pubchem)', 'Log P (COSMO-RS)']
                 
                 # Vérification des colonnes disponibles
                 available_cols = [col for col in required_cols + additional_cols if col in df.columns]
