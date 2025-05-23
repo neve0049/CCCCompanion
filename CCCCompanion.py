@@ -220,48 +220,58 @@ def show_kddb_page():
                     if not selected_rows.empty:
                         # Ne garder que la première sélection si plusieurs cases cochées
                         selected_row = selected_rows.iloc[0]
-                        system_name = selected_row['System']
-                        selected_composition = selected_row['Composition']
                         
-                        # Afficher la structure si SMILES disponible
-                        if 'SMILES' in selected_row and pd.notna(selected_row['SMILES']):
-                            st.subheader("Structure moléculaire")
-                            try:
-                                img = smiles_to_image(selected_row['SMILES'])
-                                if img:
-                                    st.image(img, caption=f"Structure de {selected_row['Compound']}", width=300)
+                        # Création de colonnes pour l'affichage
+                        col_struct, col_data = st.columns([1, 2])
+                        
+                        with col_struct:
+                            # Afficher la structure si SMILES disponible
+                            if 'SMILES' in selected_row:
+                                st.subheader("Structure moléculaire")
+                                if pd.notna(selected_row['SMILES']):
+                                    try:
+                                        img = smiles_to_image(selected_row['SMILES'])
+                                        if img:
+                                            st.image(img, caption=f"Structure de {selected_row['Compound']}", use_column_width=True)
+                                        else:
+                                            st.warning("Impossible de générer la structure")
+                                    except Exception as e:
+                                        st.error(f"Erreur de génération: {str(e)}")
                                 else:
-                                    st.warning("Impossible de générer la structure à partir des SMILES fournis")
-                            except Exception as e:
-                                st.error(f"Erreur lors de la génération de la structure: {str(e)}")
+                                    st.warning("Pas de SMILES disponible")
                         
-                        # Déterminer si c'est un système ternaire ou quaternaire
-                        is_quaternary = st.checkbox("Afficher en diagramme quaternaire", key="quaternary_check")
-                        
-                        # Chargement des données du système correspondant
-                        try:
-                            # Charger toutes les feuilles du fichier approprié
-                            target_file = DBDQ_PATH if is_quaternary else DBDT_PATH
-                            all_sheets = pd.read_excel(target_file, sheet_name=None)
+                        with col_data:
+                            system_name = selected_row['System']
+                            selected_composition = selected_row['Composition']
                             
-                            if system_name not in all_sheets:
-                                st.error(f"Aucune donnée trouvée pour le système {system_name}")
-                            else:
-                                df_system = all_sheets[system_name]
-                                df_filtered = df_system[df_system['Composition'] == selected_composition]
+                            # Déterminer si c'est un système ternaire ou quaternaire
+                            is_quaternary = st.checkbox("Afficher en diagramme quaternaire", key="quaternary_check")
+                            
+                            # Chargement des données du système correspondant
+                            try:
+                                # Charger toutes les feuilles du fichier approprié
+                                target_file = DBDQ_PATH if is_quaternary else DBDT_PATH
+                                all_sheets = pd.read_excel(target_file, sheet_name=None)
                                 
-                                if df_filtered.empty:
-                                    st.error(f"Aucune donnée trouvée pour la composition {selected_composition} dans le système {system_name}")
+                                if system_name not in all_sheets:
+                                    st.error(f"Aucune donnée trouvée pour le système {system_name}")
                                 else:
-                                    if is_quaternary:
-                                        show_quaternary_diagram(df_system, df_filtered, system_name, selected_composition)
+                                    df_system = all_sheets[system_name]
+                                    df_system['Composition'] = df_system['Composition'].astype(str)
+                                    df_filtered = df_system[df_system['Composition'] == str(selected_composition)]
+                                    
+                                    if df_filtered.empty:
+                                        st.error(f"Aucune donnée trouvée pour la composition {selected_composition}")
                                     else:
-                                        show_ternary_diagram(df_system, df_filtered, system_name, selected_composition)
-                        
-                        except Exception as e:
-                            st.error(f"Erreur lors du chargement du système {system_name}: {str(e)}")
+                                        if is_quaternary:
+                                            show_quaternary_diagram(df_system, df_filtered, system_name, selected_composition)
+                                        else:
+                                            show_ternary_diagram(df_system, df_filtered, system_name, selected_composition)
+                            
+                            except Exception as e:
+                                st.error(f"Erreur lors du chargement du système: {str(e)}")
                     else:
-                        st.info("Veuillez sélectionner une ligne dans le tableau pour afficher les détails")
+                        st.info("Veuillez sélectionner une ligne dans le tableau")
             
             except Exception as e:
                 st.error(f"Erreur lors du chargement des données: {str(e)}")
@@ -276,9 +286,6 @@ def show_kddb_page():
     if st.button("Retour à l'accueil", key="kddb_back"):
         st.session_state.current_page = "home"
         st.rerun()
-def show_dbdt_page():
-    """Page Ternary Phase Diagrams - Version complète"""
-    st.title("Ternary Phase Diagrams")
     
     try:
         # Chargement des noms de feuilles
