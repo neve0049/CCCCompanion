@@ -1,8 +1,10 @@
-streamlit
+tkinter
 pandas
-openpyxl
-plotly
 numpy
-streamlit-aggrid
+tensorflow
+sklearn
 rdkit
-pillow
+joblib
+threading
+datetime
+matplotlib
